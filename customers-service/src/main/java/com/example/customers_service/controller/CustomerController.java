@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/customers")
 @RequiredArgsConstructor
@@ -40,6 +42,12 @@ public class CustomerController {
     public ResponseEntity<Integer> getActiveLoansCount(@PathVariable Long id) {
         Integer count = customerService.getActiveLoansCount(id);
         return ResponseEntity.ok(count);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<CustomerResponseDTO>> getAllCustomers() {
+        List<CustomerResponseDTO> customers = customerService.getAllCustomers();
+        return ResponseEntity.ok(customers);
     }
 
     @PutMapping("/{id}/status")

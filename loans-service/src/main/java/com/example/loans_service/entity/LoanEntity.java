@@ -16,16 +16,12 @@ public class LoanEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // NO más @ManyToOne con CustomerEntity
-    // En microservicios guardamos solo el ID
     @Column(name = "customer_id", nullable = false)
     private Long customerId;
 
-    // NO más @ManyToOne con ToolUnitEntity
     @Column(name = "tool_unit_id", nullable = false)
     private Long toolUnitId;
 
-    // NO más relaciones JPA, solo IDs
     @Column(name = "tool_group_id", nullable = false)
     private Long toolGroupId;
 
@@ -38,14 +34,11 @@ public class LoanEntity {
     private LocalDateTime returnDate;
 
     private Double totalCost;
+
     private Double fineAmount = 0.0;
+
     private Double damageCharge = 0.0;
 
-    // Nuevo: status para facilitar consultas
     @Enumerated(EnumType.STRING)
     private LoanStatus status = LoanStatus.ACTIVE;
-
-    public enum LoanStatus {
-        ACTIVE, RETURNED, OVERDUE, DAMAGED
-    }
 }

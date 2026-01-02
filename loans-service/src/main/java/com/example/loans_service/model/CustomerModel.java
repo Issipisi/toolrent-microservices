@@ -12,8 +12,6 @@ public class CustomerModel {
     private String name;
     private String rut;
     private String status; // "ACTIVE" o "RESTRICTED"
-
-    // Para validaciones de préstamos
     private boolean hasOverdueLoans;
     private boolean hasUnpaidFines;
     private boolean hasUnpaidDamage;

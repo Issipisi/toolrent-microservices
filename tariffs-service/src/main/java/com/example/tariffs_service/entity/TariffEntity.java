@@ -1,0 +1,27 @@
+package com.example.tariffs_service.entity;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "tariffs")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class TariffEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotNull(message = "La tarifa de alquiler diaria no puede ser nula")
+    @Positive(message = "La tarifa de alquiler diaria debe ser mayor a 0")
+    private Double dailyRentalRate;
+
+    @NotNull(message = "La tarifa de multa diaria no puede ser nula")
+    @Positive(message = "La tarifa de multa diaria debe ser mayor a 0")
+    private Double dailyFineRate;
+}

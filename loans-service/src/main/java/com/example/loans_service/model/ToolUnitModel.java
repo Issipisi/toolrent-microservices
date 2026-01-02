@@ -11,8 +11,7 @@ public class ToolUnitModel {
     private Long id;
     private String status; // "AVAILABLE", "LOANED", etc.
     private Long toolGroupId;
-
-    // Datos del grupo (para cálculos)
+    private Long tariffId;
     private String toolGroupName;
     private Double dailyRentalRate;
     private Double dailyFineRate;

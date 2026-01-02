@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "tools-service", path = "/api/tools")
 public interface ToolClient {
 
-    @GetMapping("/groups/{groupId}/available-unit")
+    @GetMapping("/units/groups/{groupId}/available")
     ToolUnitModel getAvailableUnit(@PathVariable Long groupId);
 
     @GetMapping("/units/{unitId}")
