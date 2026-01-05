@@ -5,9 +5,11 @@ import com.example.tools_service.client.TariffClient;
 import com.example.tools_service.dto.ToolUnitResponseDTO;
 import com.example.tools_service.entity.ToolStatus;
 import com.example.tools_service.entity.ToolUnitEntity;
+import com.example.tools_service.entity.ToolGroupEntity; // Import necesario
 import com.example.tools_service.model.TariffModel;
 import com.example.tools_service.model.ToolUnitModel;
 import com.example.tools_service.repository.ToolUnitRepository;
+import com.example.tools_service.repository.ToolGroupRepository; // Import necesario
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,8 +25,9 @@ public class ToolUnitService {
 
     private final ToolUnitRepository toolUnitRepository;
     private final TariffClient tariffClient;
+    private final KardexClient kardexClient;
+    private final ToolGroupRepository toolGroupRepository;
 
-    // MÉTODO CRÍTICO para Loan Service
     public ToolUnitModel getAvailableUnit(Long toolGroupId) {
         log.info("Buscando unidad disponible para grupo: {}", toolGroupId);
 
@@ -36,39 +39,67 @@ public class ToolUnitService {
         return mapToModel(unit, tariff);
     }
 
-    // Otro método CRÍTICO para Loan Service
     public ToolUnitModel getToolUnit(Long unitId) {
-        ToolUnitEntity unit = toolUnitRepository.findByIdWithGroup(unitId)
-                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
+        log.info("Obteniendo información de unidad: {}", unitId);
 
-        TariffModel tariff = getTariffFromService(unit.getToolGroup().getTariffId());
-        return mapToModel(unit, tariff);
+        try {
+            // Opción 1: Usar findById y cargar lazy
+            ToolUnitEntity unit = toolUnitRepository.findById(unitId)
+                    .orElseThrow(() -> new RuntimeException("Unidad no encontrada - ID: " + unitId));
+
+            // Asegurarse de que toolGroup esté cargado
+            if (unit.getToolGroup() == null) {
+                throw new RuntimeException("Información de grupo no disponible para unidad: " + unitId);
+            }
+
+            // Obtener tarifa
+            TariffModel tariff;
+            try {
+                tariff = tariffClient.getTariff(unit.getToolGroup().getTariffId());
+                log.debug("Tarifa obtenida para unidad {}: {}", unitId, tariff);
+            } catch (Exception e) {
+                log.error("Error obteniendo tarifa {}: {}", unit.getToolGroup().getTariffId(), e.getMessage());
+                // Crear tarifa por defecto para no romper el servicio
+                tariff = new TariffModel(unit.getToolGroup().getTariffId(), 0.0, 0.0);
+            }
+
+            return mapToModel(unit, tariff);
+
+        } catch (Exception e) {
+            log.error("Error crítico en getToolUnit({}): {}", unitId, e.getMessage(), e);
+            throw new RuntimeException("No se pudo obtener información de la herramienta: " + e.getMessage());
+        }
     }
 
+    // ===== MÉTODO PRINCIPAL: changeStatus con Kardex =====
     @Transactional
     public void updateStatus(Long unitId, String status) {
         ToolStatus newStatus;
         try {
             newStatus = ToolStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Estado inválido: " + status);
+            throw new RuntimeException("Invalid status: " + status);
         }
 
-        ToolUnitEntity unit = toolUnitRepository.findById(unitId)
-                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
+        ToolUnitEntity unit = toolUnitRepository.findByIdWithGroup(unitId)
+                .orElseThrow(() -> new RuntimeException("Unit not found"));
 
-        // Validaciones
         if (unit.getStatus() == ToolStatus.RETIRED) {
-            throw new RuntimeException("No se puede cambiar estado de una unidad retirada");
+            throw new RuntimeException("Cannot change status of a retired unit");
         }
 
         if (unit.getStatus() == newStatus) {
-            throw new RuntimeException("La unidad ya está en estado: " + newStatus);
+            throw new RuntimeException("Unit is already in status: " + newStatus);
         }
 
+        ToolStatus oldStatus = unit.getStatus();
         unit.setStatus(newStatus);
-        toolUnitRepository.save(unit);
-        log.info("Unidad {} cambió estado: {} -> {}", unitId, unit.getStatus(), newStatus);
+        ToolUnitEntity savedUnit = toolUnitRepository.save(unit);
+
+        log.info("Unit {} changed status: {} -> {}", unitId, oldStatus, newStatus);
+
+        // Registrar en kardex según el cambio
+        registerKardexMovement(unit, oldStatus, newStatus);
     }
 
     public ToolUnitResponseDTO getUnitDetails(Long unitId) {
@@ -91,10 +122,16 @@ public class ToolUnitService {
     }
 
     public List<ToolUnitResponseDTO> getAllUnits() {
-        List<ToolUnitEntity> units = toolUnitRepository.findAll();
+        // Usar el método que carga toolGroup con JOIN FETCH
+        List<ToolUnitEntity> units = toolUnitRepository.findAllWithToolGroup();
+        log.info("Total units with groups found: {}", units.size());
 
         return units.stream().map(unit -> {
             TariffModel tariff = getTariffFromService(unit.getToolGroup().getTariffId());
+
+            log.debug("Processing unit {}: toolGroupName = {}",
+                    unit.getId(), unit.getToolGroup().getName());
+
             return new ToolUnitResponseDTO(
                     unit.getId(),
                     unit.getToolGroup().getId(),
@@ -113,6 +150,62 @@ public class ToolUnitService {
         return toolUnitRepository.countByToolGroupIdAndStatus(toolGroupId, ToolStatus.AVAILABLE);
     }
 
+    private void registerKardexMovement(ToolUnitEntity unit, ToolStatus oldStatus, ToolStatus newStatus) {
+        try {
+            Long toolGroupId = unit.getToolGroup().getId();
+            String toolGroupName = unit.getToolGroup().getName();
+
+            // Usar switch expression (Java 14+) - compacto y legible
+            String movementType = switch (newStatus) {
+                case IN_REPAIR -> "SEND_TO_REPAIR";
+                case RETIRED -> "RETIREMENT";
+                case AVAILABLE -> oldStatus == ToolStatus.IN_REPAIR ? "REPAIR_COMPLETION" : "AVAILABILITY";
+                default -> "STATUS_CHANGE";
+            };
+
+            // Registrar movimiento básico
+            kardexClient.registerStatusChange(
+                    unit.getId(),
+                    toolGroupId,
+                    movementType,
+                    "Status changed from " + oldStatus + " to " + newStatus
+            );
+
+            // Acciones específicas según el estado
+            switch (newStatus) {
+                case IN_REPAIR -> {
+                    log.info("Kardex: Unit {} sent to repair", unit.getId());
+                }
+                case RETIRED -> {
+                    // Reducir stock disponible (el stock se calcula dinámicamente)
+                    ToolGroupEntity toolGroup = unit.getToolGroup();
+                    log.info("Kardex: Unit {} retired, stock will be recalculated for group {}",
+                            unit.getId(), toolGroupId);
+
+                    // Registrar retiro específico
+                    kardexClient.registerToolRetirement(
+                            unit.getId(),
+                            toolGroupId,
+                            "Tool permanently retired from inventory"
+                    );
+                }
+                case AVAILABLE -> {
+                    if (oldStatus == ToolStatus.IN_REPAIR) {
+                        log.info("Kardex: Unit {} returned from repair", unit.getId());
+                    } else {
+                        log.info("Kardex: Unit {} made available", unit.getId());
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("Error registering kardex movement for unit {}: {}",
+                    unit.getId(), e.getMessage(), e);
+            // No lanzamos excepción para no romper el flujo
+        }
+    }
+
+
     @Transactional
     public ToolUnitEntity repairResolution(Long unitId, boolean retire) {
         ToolUnitEntity unit = toolUnitRepository.findById(unitId)
@@ -122,11 +215,42 @@ public class ToolUnitService {
             throw new RuntimeException("La unidad no está en reparación");
         }
 
-        ToolStatus target = retire ? ToolStatus.RETIRED : ToolStatus.AVAILABLE;
-        unit.setStatus(target);
+        if (retire) {
+            unit.setStatus(ToolStatus.RETIRED);
+            log.info("Unidad {} retirada después de reparación", unitId);
+
+            // Registrar en Kardex
+            try {
+                kardexClient.registerRetirement(
+                        unitId,
+                        unit.getToolGroup().getId(),
+                        "No reparable",
+                        null
+                );
+            } catch (Exception e) {
+                log.warn("Error registrando retiro en Kardex", e);
+            }
+        } else {
+            unit.setStatus(ToolStatus.AVAILABLE);
+            log.info("Unidad {} disponible después de reparación", unitId);
+
+            // Registrar en Kardex
+            try {
+                kardexClient.registerReEntryFromRepair(
+                        unitId,
+                        unit.getToolGroup().getId(),
+                        null, // No conocemos el costo aquí
+                        true
+                );
+            } catch (Exception e) {
+                log.warn("Error registrando reingreso en Kardex", e);
+            }
+        }
 
         return toolUnitRepository.save(unit);
     }
+
+    // ========== MÉTODOS PRIVADOS ==========
 
     private ToolUnitModel mapToModel(ToolUnitEntity unit, TariffModel tariff) {
         return new ToolUnitModel(
@@ -148,94 +272,5 @@ public class ToolUnitService {
             log.error("Error obteniendo tarifa {} de Tariff Service", tariffId, e);
             throw new RuntimeException("Error al obtener tarifa: " + e.getMessage());
         }
-    }
-
-    // En ToolUnitService.java (tools-service)
-    @Transactional
-    public String sendToRepair(Long unitId, Double estimatedCost, String damageDescription) {
-        ToolUnitEntity unit = toolUnitRepository.findById(unitId)
-                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
-
-        // Validar que esté en estado LOANED o AVAILABLE
-        if (unit.getStatus() != ToolStatus.LOANED && unit.getStatus() != ToolStatus.AVAILABLE) {
-            throw new RuntimeException("Solo herramientas prestadas o disponibles pueden enviarse a reparación");
-        }
-
-        // Cambiar estado
-        unit.setStatus(ToolStatus.IN_REPAIR);
-        toolUnitRepository.save(unit);
-
-        // Registrar en Kardex
-        try {
-            String details = "Enviado a reparación";
-            if (damageDescription != null) {
-                details += ": " + damageDescription;
-            }
-            if (estimatedCost != null) {
-                details += String.format(" (Costo estimado: $%.2f)", estimatedCost);
-            }
-
-            KardexClient.registerSendToRepair(
-                    unitId,
-                    unit.getToolGroup().getId(),
-                    null, // No hay cliente asociado directamente
-                    details
-            );
-        } catch (Exception e) {
-            log.warn("Error registrando envío a reparación en Kardex", e);
-        }
-
-        return "Herramienta enviada a reparación";
-    }
-
-    @Transactional
-    public ToolUnitEntity completeRepair(Long unitId, Double actualCost, boolean successful, String notes) {
-        ToolUnitEntity unit = toolUnitRepository.findById(unitId)
-                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
-
-        if (unit.getStatus() != ToolStatus.IN_REPAIR) {
-            throw new RuntimeException("La herramienta no está en reparación");
-        }
-
-        if (successful) {
-            // Reparación exitosa - volver a AVAILABLE
-            unit.setStatus(ToolStatus.AVAILABLE);
-
-            // Registrar en Kardex como RE_ENTRY
-            try {
-                KardexClient.registerReEntryFromRepair(
-                        unitId,
-                        unit.getToolGroup().getId(),
-                        actualCost,
-                        true
-                );
-            } catch (Exception e) {
-                log.warn("Error registrando reingreso en Kardex", e);
-            }
-
-            log.info("Reparación exitosa - Unidad {} disponible nuevamente", unitId);
-
-        } else {
-            // Reparación fallida - mantener en IN_REPAIR o RETIRAR
-            // Depende de la política del negocio
-            // Por ahora, mantenemos en IN_REPAIR para evaluación
-
-            log.warn("Reparación fallida - Unidad {} requiere evaluación adicional", unitId);
-
-            try {
-                kardexClient.registerReEntryFromRepair(
-                        unitId,
-                        unit.getToolGroup().getId(),
-                        actualCost,
-                        false
-                );
-            } catch (Exception e) {
-                log.warn("Error registrando falla de reparación en Kardex", e);
-            }
-        }
-
-        ToolUnitEntity saved = toolUnitRepository.save(unit);
-
-        return saved;
     }
 }

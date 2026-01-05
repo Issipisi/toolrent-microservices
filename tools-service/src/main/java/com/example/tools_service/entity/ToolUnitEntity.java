@@ -17,7 +17,7 @@ public class ToolUnitEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tool_group_id", nullable = false)
     @JsonBackReference  // ← AÑADIR ESTO
     private ToolGroupEntity toolGroup;

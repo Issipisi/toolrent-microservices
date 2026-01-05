@@ -5,9 +5,13 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
-@FeignClient(name = "tools-service", path = "/api/tools")
+// ToolClient.java
+@FeignClient(
+        name = "tools-service",
+        contextId = "kardexToolClient",  // ← CONTEXT ID ÚNICO
+        path = "/api/tools/units"
+)
 public interface ToolClient {
-
-    @GetMapping("/units/{id}")
-    ToolUnitModel getToolUnit(@PathVariable Long id);
+    @GetMapping("/{unitId}")
+    ToolUnitModel getToolUnit(@PathVariable Long unitId);
 }

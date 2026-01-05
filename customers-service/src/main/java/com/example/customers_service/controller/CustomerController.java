@@ -57,4 +57,10 @@ public class CustomerController {
         CustomerResponseDTO updated = customerService.updateStatus(id, status);
         return ResponseEntity.ok(updated);
     }
+
+    @GetMapping("/active")
+    public ResponseEntity<List<CustomerResponseDTO>> getActiveCustomers() {
+        List<CustomerResponseDTO> customers = customerService.getActiveCustomers();
+        return ResponseEntity.ok(customers);
+    }
 }

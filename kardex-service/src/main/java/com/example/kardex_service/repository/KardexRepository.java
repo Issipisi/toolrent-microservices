@@ -12,16 +12,36 @@ import java.util.List;
 @Repository
 public interface KardexRepository extends JpaRepository<KardexMovementEntity, Long> {
 
+    // Consultas básicas
     List<KardexMovementEntity> findByToolUnitId(Long toolUnitId);
+
+    // CORREGIDO: findByToolGroupId no existe, necesitamos crearlo
+    List<KardexMovementEntity> findByToolGroupId(Long toolGroupId);
+
+    List<KardexMovementEntity> findByMovementDateBetween(LocalDateTime startDate, LocalDateTime endDate);
 
     List<KardexMovementEntity> findByCustomerId(Long customerId);
 
-    @Query("SELECT k FROM KardexMovementEntity k WHERE k.movementDate BETWEEN :from AND :to ORDER BY k.movementDate DESC")
-    List<KardexMovementEntity> findByMovementDateBetween(
-            @Param("from") LocalDateTime from,
-            @Param("to") LocalDateTime to);
+    // Por tipo de movimiento (como string, no enum)
+    List<KardexMovementEntity> findByMovementType(String movementType);
 
-    // Método CORREGIDO usando @Query con string
-    @Query("SELECT k FROM KardexMovementEntity k WHERE UPPER(k.movementType) = UPPER(:movementType) ORDER BY k.movementDate DESC")
-    List<KardexMovementEntity> findByMovementType(@Param("movementType") String movementType);
+    // Consultas personalizadas con JPQL
+    @Query("SELECT k FROM KardexMovementEntity k WHERE k.toolUnitId = :toolUnitId AND k.movementDate BETWEEN :startDate AND :endDate")
+    List<KardexMovementEntity> findByToolUnitIdAndDateRange(
+            @Param("toolUnitId") Long toolUnitId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT k FROM KardexMovementEntity k WHERE k.toolGroupId = :toolGroupId AND k.movementDate BETWEEN :startDate AND :endDate")
+    List<KardexMovementEntity> findByToolGroupIdAndDateRange(
+            @Param("toolGroupId") Long toolGroupId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    // Último movimiento de una unidad
+    KardexMovementEntity findTopByToolUnitIdOrderByMovementDateDesc(Long toolUnitId);
+
+    // Contar movimientos por tipo
+    @Query("SELECT COUNT(k) FROM KardexMovementEntity k WHERE k.movementType = :movementType")
+    Long countByMovementType(@Param("movementType") String movementType);
 }

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+// Mantener solo lo esencial
 @RestController
 @RequestMapping("/api/tools/units")
 @RequiredArgsConstructor
@@ -17,21 +18,28 @@ public class ToolUnitController {
 
     private final ToolUnitService toolUnitService;
 
-    // ENDPOINT CRÍTICO para Loan Service
+    // CRÍTICO para Loan Service
     @GetMapping("/{id}")
     public ResponseEntity<ToolUnitResponseDTO> getUnitDetails(@PathVariable Long id) {
         ToolUnitResponseDTO unit = toolUnitService.getUnitDetails(id);
         return ResponseEntity.ok(unit);
     }
 
-    // ENDPOINT CRÍTICO para Loan Service - para reservar unidad
+    // CRÍTICO para Loan Service
+    @GetMapping("/{id}/model")
+    public ResponseEntity<ToolUnitModel> getToolUnitModel(@PathVariable Long id) {
+        ToolUnitModel unit = toolUnitService.getToolUnit(id);
+        return ResponseEntity.ok(unit);
+    }
+
+    // CRÍTICO para Loan Service - para reservar unidad
     @GetMapping("/groups/{groupId}/available")
     public ResponseEntity<ToolUnitModel> getAvailableUnit(@PathVariable Long groupId) {
         ToolUnitModel unit = toolUnitService.getAvailableUnit(groupId);
         return ResponseEntity.ok(unit);
     }
 
-    // ENDPOINT CRÍTICO para Loan Service - para cambiar estado
+    // CRÍTICO para Loan Service - para cambiar estado
     @PutMapping("/{id}/status")
     public ResponseEntity<Void> updateStatus(
             @PathVariable Long id,
@@ -40,45 +48,32 @@ public class ToolUnitController {
         return ResponseEntity.ok().build();
     }
 
-    @GetMapping("/groups/{groupId}/stock")
-    public ResponseEntity<Long> getAvailableStock(@PathVariable Long groupId) {
-        long stock = toolUnitService.getAvailableStock(groupId);
-        return ResponseEntity.ok(stock);
-    }
-
     @GetMapping
     public ResponseEntity<List<ToolUnitResponseDTO>> getAllUnits() {
         List<ToolUnitResponseDTO> units = toolUnitService.getAllUnits();
         return ResponseEntity.ok(units);
     }
 
-    @PutMapping("/{unitId}/repair-resolution")
-    public ResponseEntity<ToolUnitEntity> resolveRepair(
-            @PathVariable Long unitId,
+
+    @PutMapping("/{id}/resolve-repair")
+    public ResponseEntity<Void> resolveRepair(
+            @PathVariable Long id,
             @RequestParam boolean retire) {
-        ToolUnitEntity updated = toolUnitService.repairResolution(unitId, retire);
-        return ResponseEntity.ok(updated);
+        toolUnitService.repairResolution(id, retire);
+        return ResponseEntity.ok().build();
     }
 
-    // En ToolUnitController.java (tools-service)
-    @PutMapping("/{unitId}/repair")
-    public ResponseEntity<String> sendToRepair(
-            @PathVariable Long unitId,
-            @RequestParam(required = false) Double estimatedCost,
-            @RequestParam(required = false) String damageDescription) {
-
-        String result = toolUnitService.sendToRepair(unitId, estimatedCost, damageDescription);
-        return ResponseEntity.ok(result);
+    @PutMapping("/{id}/retire-from-repair")
+    public ResponseEntity<Void> retireFromRepair(@PathVariable Long id) {
+        toolUnitService.repairResolution(id, true); // true = retire
+        return ResponseEntity.ok().build();
     }
 
-    @PutMapping("/{unitId}/complete-repair")
-    public ResponseEntity<ToolUnitEntity> completeRepair(
-            @PathVariable Long unitId,
-            @RequestParam Double actualCost,
-            @RequestParam boolean successful,
-            @RequestParam(required = false) String notes) {
-
-        ToolUnitEntity updated = toolUnitService.completeRepair(unitId, actualCost, successful, notes);
-        return ResponseEntity.ok(updated);
+    // Opcional - para reportes
+    @GetMapping("/groups/{groupId}/stock")
+    public ResponseEntity<Long> getAvailableStock(@PathVariable Long groupId) {
+        long stock = toolUnitService.getAvailableStock(groupId);
+        return ResponseEntity.ok(stock);
     }
+
 }

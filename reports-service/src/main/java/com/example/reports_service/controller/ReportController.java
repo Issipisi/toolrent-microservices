@@ -29,7 +29,7 @@ public class ReportController {
         return ResponseEntity.ok(reportService.getCustomersWithDelaysReport());
     }
 
-    // RF6.3
+    /* RF6.3
     @GetMapping("/most-borrowed-tools")
     public ResponseEntity<List<MostBorrowedToolDTO>> getMostBorrowedTools(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -44,6 +44,11 @@ public class ReportController {
         }
 
         return ResponseEntity.ok(reportService.getMostBorrowedToolsReport(startDate, endDate));
+    }*/
+
+    @GetMapping("/tool-ranking")
+    public ResponseEntity<List<ToolRankingDTO>> getToolRanking() {
+        return ResponseEntity.ok(reportService.getToolRankingByLoans());
     }
 
     @GetMapping("/test")

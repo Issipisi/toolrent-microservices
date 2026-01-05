@@ -7,15 +7,16 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-@FeignClient(name = "tools-service", path = "/api/tools")
+// En Loan Service - ToolClient.java
+@FeignClient(name = "tools-service", path = "/api/tools/units")
 public interface ToolClient {
 
-    @GetMapping("/units/groups/{groupId}/available")
+    @GetMapping("/groups/{groupId}/available")
     ToolUnitModel getAvailableUnit(@PathVariable Long groupId);
 
-    @GetMapping("/units/{unitId}")
+    @GetMapping("/{unitId}/model")  // <- NUEVO endpoint específico
     ToolUnitModel getToolUnit(@PathVariable Long unitId);
 
-    @PutMapping("/units/{unitId}/status")
+    @PutMapping("/{unitId}/status")
     void updateStatus(@PathVariable Long unitId, @RequestParam String status);
 }

@@ -1,9 +1,11 @@
 package com.example.customers_service.repository;
 
 import com.example.customers_service.entity.CustomerEntity;
+import com.example.customers_service.entity.CustomerStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -12,4 +14,5 @@ public interface CustomerRepository extends JpaRepository<CustomerEntity, Long> 
     Optional<CustomerEntity> findByEmail(String email);
     boolean existsByRut(String rut);
     boolean existsByEmail(String email);
+    List<CustomerEntity> findByStatus(CustomerStatus status);
 }

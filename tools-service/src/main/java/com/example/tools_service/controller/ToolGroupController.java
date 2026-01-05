@@ -17,6 +17,8 @@ public class ToolGroupController {
 
     private final ToolGroupService toolGroupService;
 
+    // Endpoints existentes
+
     @PostMapping
     public ResponseEntity<ToolGroupResponseDTO> createToolGroup(
             @Valid @RequestBody ToolGroupRequestDTO request) {
@@ -57,5 +59,40 @@ public class ToolGroupController {
             @RequestParam Double replacementValue) {
         ToolGroupResponseDTO updated = toolGroupService.updateReplacementValue(id, replacementValue);
         return ResponseEntity.ok(updated);
+    }
+
+    // ========== NUEVOS ENDPOINTS PARA REPARACIONES ==========
+
+    @PutMapping("/units/{unitId}/send-to-repair")
+    public ResponseEntity<String> sendToRepair(
+            @PathVariable Long unitId,
+            @RequestParam(required = false) String reason,
+            @RequestParam(required = false) Long customerId) {
+
+        toolGroupService.sendToRepair(unitId, reason, customerId);
+        return ResponseEntity.ok("Herramienta enviada a reparación");
+    }
+
+    @PutMapping("/units/{unitId}/complete-repair")
+    public ResponseEntity<String> completeRepair(
+            @PathVariable Long unitId,
+            @RequestParam(required = false) Double repairCost,
+            @RequestParam(defaultValue = "true") boolean successful,
+            @RequestParam(required = false) String notes) {
+
+        toolGroupService.completeRepair(unitId, repairCost, successful, notes);
+        return ResponseEntity.ok(successful ?
+                "Reparación completada exitosamente" :
+                "Reparación fallida - herramienta requiere evaluación");
+    }
+
+    @PutMapping("/units/{unitId}/retire")
+    public ResponseEntity<String> retireTool(
+            @PathVariable Long unitId,
+            @RequestParam String reason,
+            @RequestParam(required = false) Long customerId) {
+
+        toolGroupService.retireTool(unitId, reason, customerId);
+        return ResponseEntity.ok("Herramienta retirada del inventario");
     }
 }

@@ -15,5 +15,15 @@ public class ToolGroupResponseDTO {
     private Long tariffId;
     private Double dailyRentalRate;
     private Double dailyFineRate;
-    private Long availableUnits;
+    private Long availableCount;
+    private Long totalUnits; // NUEVO: Total de unidades en el grupo
+
+    // Constructor para compatibilidad
+    public ToolGroupResponseDTO(Long id, String name, String category, Double replacementValue,
+                                Long tariffId, Double dailyRentalRate, Double dailyFineRate,
+                                Long availableCount) {
+        this(id, name, category, replacementValue, tariffId, dailyRentalRate,
+                dailyFineRate, availableCount, null);
+    }
+
 }

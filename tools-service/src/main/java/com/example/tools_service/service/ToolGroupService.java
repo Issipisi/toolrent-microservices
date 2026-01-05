@@ -1,5 +1,6 @@
 package com.example.tools_service.service;
 
+import com.example.tools_service.client.KardexClient;
 import com.example.tools_service.client.TariffClient;
 import com.example.tools_service.dto.ToolGroupRequestDTO;
 import com.example.tools_service.dto.ToolGroupResponseDTO;
@@ -25,15 +26,18 @@ public class ToolGroupService {
     private final ToolGroupRepository toolGroupRepository;
     private final ToolUnitRepository toolUnitRepository;
     private final TariffClient tariffClient;
+    private final KardexClient kardexClient; // NUEVO: Kardex Client
 
     @Transactional
     public ToolGroupResponseDTO createToolGroup(ToolGroupRequestDTO request) {
-        // Validar nombre único
+        log.info("Creando grupo de herramientas: {}", request.getName());
+
+        // 1. Validar nombre único
         if (toolGroupRepository.existsByName(request.getName())) {
             throw new RuntimeException("Ya existe un grupo de herramientas con ese nombre");
         }
 
-        // 1. Crear tarifa en Tariff Service
+        // 2. Crear tarifa en Tariff Service
         TariffModel tariff;
         try {
             tariff = tariffClient.createTariff(
@@ -46,14 +50,14 @@ public class ToolGroupService {
             throw new RuntimeException("Error al crear tarifa: " + e.getMessage());
         }
 
-        // 2. Crear grupo con tariffId
+        // 3. Crear grupo con tariffId
         ToolGroupEntity group = new ToolGroupEntity();
         group.setName(request.getName());
         group.setCategory(request.getCategory());
         group.setReplacementValue(request.getReplacementValue());
         group.setTariffId(tariff.getId());
 
-        // 3. Crear unidades iniciales
+        // 4. Crear unidades iniciales
         for (int i = 0; i < request.getInitialStock(); i++) {
             ToolUnitEntity unit = new ToolUnitEntity();
             unit.setToolGroup(group);
@@ -61,7 +65,28 @@ public class ToolGroupService {
             group.getUnits().add(unit);
         }
 
+        // 5. Guardar el grupo (esto guarda también las unidades por cascade)
         ToolGroupEntity saved = toolGroupRepository.save(group);
+        log.info("Grupo de herramientas creado: ID {}, Unidades: {}",
+                saved.getId(), saved.getUnits().size());
+
+        // En el método createToolGroup, reemplazar la parte del kardex:
+
+        // ===== REGISTRAR EN KARDEX: CREACIÓN DE HERRAMIENTAS =====
+        try {
+            // Registrar movimiento de creación del grupo
+            kardexClient.registerToolsBatchCreation(
+                    saved.getId(),
+                    saved.getName(),
+                    saved.getUnits().size(),
+                    "Tool group created with initial stock of " + saved.getUnits().size() + " units"
+            );
+            log.info("Kardex: Tool group {} created with {} units", saved.getId(), saved.getUnits().size());
+
+        } catch (Exception e) {
+            log.error("Error registering tool group creation in kardex: {}", e.getMessage(), e);
+        }
+
         return mapToDTO(saved, tariff);
     }
 
@@ -82,7 +107,6 @@ public class ToolGroupService {
                 .collect(Collectors.toList());
     }
 
-    // MÉTODO FALTANTE: getAvailableToolGroups
     public List<ToolGroupResponseDTO> getAvailableToolGroups() {
         return toolGroupRepository.findAll().stream()
                 .filter(group -> group.getUnits().stream()
@@ -125,11 +149,124 @@ public class ToolGroupService {
         return mapToDTO(saved, tariff);
     }
 
+    // ========== MÉTODOS PARA MANEJO DE REPARACIONES ==========
+
+    /**
+     * Enviar herramienta a reparación
+     */
+    @Transactional
+    public void sendToRepair(Long unitId, String reason, Long customerId) {
+        ToolUnitEntity unit = toolUnitRepository.findById(unitId)
+                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
+
+        // Validar que pueda ir a reparación
+        if (unit.getStatus() != ToolStatus.AVAILABLE && unit.getStatus() != ToolStatus.LOANED) {
+            throw new RuntimeException("La herramienta no puede enviarse a reparación en su estado actual");
+        }
+
+        // Cambiar estado
+        unit.setStatus(ToolStatus.IN_REPAIR);
+        toolUnitRepository.save(unit);
+        log.info("Unidad {} enviada a reparación", unitId);
+
+        // Registrar en Kardex
+        try {
+            kardexClient.registerSendToRepair(
+                    unitId,
+                    unit.getToolGroup().getId(),
+                    customerId,
+                    reason
+            );
+            log.info("Movimiento de reparación registrado en Kardex");
+        } catch (Exception e) {
+            log.warn("Error registrando reparación en Kardex", e);
+        }
+    }
+
+    /**
+     * Completar reparación de herramienta
+     */
+    @Transactional
+    public void completeRepair(Long unitId, Double repairCost, boolean successful, String notes) {
+        ToolUnitEntity unit = toolUnitRepository.findById(unitId)
+                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
+
+        if (unit.getStatus() != ToolStatus.IN_REPAIR) {
+            throw new RuntimeException("La herramienta no está en reparación");
+        }
+
+        if (successful) {
+            // Reparación exitosa - volver a AVAILABLE
+            unit.setStatus(ToolStatus.AVAILABLE);
+            log.info("Reparación exitosa - Unidad {} disponible", unitId);
+
+            // Registrar RE_ENTRY en Kardex
+            try {
+                // Llamar al nuevo endpoint de re-ingreso
+                kardexClient.registerReEntry(
+                        unitId,
+                        unit.getToolGroup().getId(),
+                        repairCost,
+                        "Reparación exitosa: " + (notes != null ? notes : "")
+                );
+                log.info("Movimiento RE_ENTRY registrado en Kardex");
+            } catch (Exception e) {
+                log.warn("Error registrando RE_ENTRY en Kardex", e);
+            }
+        } else {
+            // Reparación fallida - mantener en reparación para evaluación
+            log.warn("Reparación fallida - Unidad {} requiere evaluación", unitId);
+            // Podemos registrar también en Kardex como reparación fallida
+            try {
+                kardexClient.registerSendToRepair(
+                        unitId,
+                        unit.getToolGroup().getId(),
+                        null,
+                        "Reparación fallida: " + (notes != null ? notes : "Requiere evaluación adicional")
+                );
+            } catch (Exception e) {
+                log.warn("Error registrando reparación fallida en Kardex", e);
+            }
+        }
+
+        toolUnitRepository.save(unit);
+    }
+
+    /**
+     * Retirar herramienta (baja definitiva)
+     */
+    @Transactional
+    public void retireTool(Long unitId, String reason, Long customerId) {
+        ToolUnitEntity unit = toolUnitRepository.findById(unitId)
+                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
+
+        // Cambiar estado a RETIRED
+        unit.setStatus(ToolStatus.RETIRED);
+        toolUnitRepository.save(unit);
+        log.info("Unidad {} retirada: {}", unitId, reason);
+
+        // Registrar en Kardex
+        try {
+            kardexClient.registerRetirement(
+                    unitId,
+                    unit.getToolGroup().getId(),
+                    reason,
+                    customerId
+            );
+            log.info("Movimiento de retiro registrado en Kardex");
+        } catch (Exception e) {
+            log.warn("Error registrando retiro en Kardex", e);
+        }
+    }
+
+    // ========== MÉTODOS PRIVADOS ==========
+
     private ToolGroupResponseDTO mapToDTO(ToolGroupEntity entity, TariffModel tariff) {
         long availableCount = entity.getUnits().stream()
                 .filter(unit -> unit.getStatus() == ToolStatus.AVAILABLE)
                 .count();
 
+        // Corregir: usar el constructor completo con totalUnits
         return new ToolGroupResponseDTO(
                 entity.getId(),
                 entity.getName(),
@@ -138,7 +275,8 @@ public class ToolGroupService {
                 entity.getTariffId(),
                 tariff.getDailyRentalRate(),
                 tariff.getDailyFineRate(),
-                availableCount
+                availableCount,
+                (long) entity.getUnits().size() // Total de unidades
         );
     }
 

@@ -36,10 +36,10 @@ public class LoanService {
         // 1. Parsear fecha
         LocalDateTime dueDate = LocalDateTime.parse(request.getDueDate());
 
-        // 2. Validar fecha
+        /* 2. Validar fecha
         if (dueDate.isBefore(LocalDateTime.now())) {
             throw new RuntimeException("La fecha de devolución no puede ser anterior a la actual");
-        }
+        }*/
 
         // 3. Validar cliente
         CustomerModel customer = customerClient.validateForLoan(request.getCustomerId());
@@ -112,22 +112,22 @@ public class LoanService {
         if (irreparable) {
             ToolUnitModel toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
             loan.setDamageCharge(toolUnit.getReplacementValue());
-            loan.setStatus(LoanStatus.DAMAGED);
+            loan.setStatus(LoanStatus.RETURNED);
 
             // Cambiar estado de herramienta a RETIRED
             toolClient.updateStatus(loan.getToolUnitId(), "RETIRED");
 
             // Registrar en Kardex como RETIRE
-            registerKardexMovement("RETIRE", loan, "Daño irreparable");
+            registerKardexMovement("RETIRE", loan, "Herramienta Retirada- Daño irreparable");
         } else if (damageCharge != null && damageCharge > 0) {
             loan.setDamageCharge(damageCharge);
-            loan.setStatus(LoanStatus.DAMAGED);
+            loan.setStatus(LoanStatus.RETURNED);
 
             // Cambiar estado a IN_REPAIR
             toolClient.updateStatus(loan.getToolUnitId(), "IN_REPAIR");
 
             // Registrar en Kardex como REPAIR
-            registerKardexMovement("REPAIR", loan, "Daño leve: " + damageCharge);
+            registerKardexMovement("REPAIR", loan, "Herramienta en Reparación - Daño leve: " + damageCharge);
         } else {
             loan.setStatus(LoanStatus.RETURNED);
 
@@ -135,7 +135,7 @@ public class LoanService {
             toolClient.updateStatus(loan.getToolUnitId(), "AVAILABLE");
 
             // Registrar en Kardex como RETURN
-            registerKardexMovement("RETURN", loan, "Devolución normal");
+            registerKardexMovement("RETURN", loan, "Herramienta Disponible - Devolución normal");
         }
 
         LoanEntity updatedLoan = loanRepository.save(loan);
@@ -236,10 +236,10 @@ public class LoanService {
         if (irreparable) {
             ToolUnitModel toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
             loan.setDamageCharge(toolUnit.getReplacementValue());
-            loan.setStatus(LoanStatus.DAMAGED);
+            loan.setStatus(LoanStatus.RETURNED);
         } else {
             loan.setDamageCharge(amount);
-            loan.setStatus(LoanStatus.DAMAGED);
+            loan.setStatus(LoanStatus.RETURNED);
         }
 
         loanRepository.save(loan);

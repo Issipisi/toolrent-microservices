@@ -1,3 +1,4 @@
+// KardexMovementEntity.java
 package com.example.kardex_service.entity;
 
 import jakarta.persistence.*;
@@ -22,11 +23,11 @@ public class KardexMovementEntity {
     @Column(name = "tool_group_id", nullable = false)
     private Long toolGroupId;
 
-    @Column(name = "customer_id")
-    private Long customerId;
+    @Column(name = "customer_id")  // <- REMOVER nullable = false
+    private Long customerId;        // <- Puede ser null
 
     @Column(name = "user_id", nullable = false)
-    private Long userId = 0L; // 0 = SISTEMA por defecto
+    private Long userId = 0L;  // Valor por defecto para usuario SISTEMA
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -35,25 +36,19 @@ public class KardexMovementEntity {
     @Column(nullable = false)
     private LocalDateTime movementDate = LocalDateTime.now();
 
-    @Column(length = 500)
+    @Column(columnDefinition = "TEXT")
     private String details;
 
-    // Campos denormalizados para consultas
+    // Campos denormalizados
+    @Column(name = "tool_group_name")
     private String toolGroupName;
-    private String customerName;
-    private String userName = "SISTEMA"; // Por defecto
 
-    // Auditoría
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "customer_name")
+    private String customerName = "N/A";  // Valor por defecto
+
+    @Column(name = "user_name")
+    private String userName = "SISTEMA";
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        if (movementDate == null) {
-            movementDate = LocalDateTime.now();
-        }
-    }
 }

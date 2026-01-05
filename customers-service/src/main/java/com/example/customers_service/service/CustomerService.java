@@ -72,6 +72,12 @@ public class CustomerService {
         return 0;
     }
 
+    public List<CustomerResponseDTO> getActiveCustomers() {
+        return customerRepository.findByStatus(CustomerStatus.ACTIVE).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public CustomerResponseDTO updateStatus(Long id, CustomerStatus status) {
         CustomerEntity customer = customerRepository.findById(id)
