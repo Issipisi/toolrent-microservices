@@ -36,6 +36,12 @@ const getActive = () => {
   return api.get('/api/loans/active');
 };
 
+const sendToRepair = (toolUnitId) => {
+  return api.put(`/api/tools/${toolUnitId}/status`, {
+    status: "IN_REPAIR"
+  });
+};
+
 export default { 
   register, 
   returnLoan, 
@@ -44,5 +50,6 @@ export default {
   getOverdueLoans, 
   getReturnedWithDebts, 
   payDebts, 
-  applyDamage 
+  applyDamage,
+  sendToRepair  // <-- AÑADIR ESTO
 };

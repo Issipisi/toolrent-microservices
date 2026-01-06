@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -148,45 +149,153 @@ public class LoanService {
     }
 
     public List<LoanActiveDTO> getActiveLoans() {
-        List<LoanEntity> loans = loanRepository.findByReturnDateIsNull();
+        try {
+            log.info("🟢 Obteniendo préstamos activos...");
+            List<LoanEntity> loans = loanRepository.findByReturnDateIsNull();
+            log.info("📊 Encontrados {} préstamos activos en BD", loans.size());
 
-        return loans.stream().map(loan -> {
-            CustomerModel customer = getCustomerInfo(loan.getCustomerId());
-            ToolUnitModel toolUnit = getToolUnitInfo(loan.getToolUnitId());
+            if (loans.isEmpty()) {
+                log.info("✅ No hay préstamos activos");
+                return new ArrayList<>();
+            }
 
-            return new LoanActiveDTO(
-                    loan.getId(),
-                    customer != null ? customer.getName() : "Desconocido",
-                    toolUnit != null ? toolUnit.getToolGroupName() : "Desconocido",
-                    loan.getLoanDate(),
-                    loan.getDueDate(),
-                    loan.getReturnDate(),
-                    loan.getFineAmount(),
-                    loan.getDamageCharge(),
-                    loan.getStatus().toString()
-            );
-        }).collect(Collectors.toList());
+            return loans.stream()
+                    .map(loan -> {
+                        try {
+                            // Intentar obtener información del cliente
+                            CustomerModel customer = null;
+                            try {
+                                customer = customerClient.getCustomer(loan.getCustomerId());
+                            } catch (Exception e) {
+                                log.warn("⚠️ No se pudo obtener cliente {}: {}", loan.getCustomerId(), e.getMessage());
+                            }
+
+                            // Intentar obtener información de la herramienta
+                            ToolUnitModel toolUnit = null;
+                            try {
+                                toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
+                            } catch (Exception e) {
+                                log.warn("⚠️ No se pudo obtener herramienta {}: {}", loan.getToolUnitId(), e.getMessage());
+                            }
+
+                            // Construir DTO con información disponible
+                            String customerName = customer != null ? customer.getName() : "Cliente #" + loan.getCustomerId();
+                            String toolName = toolUnit != null ? toolUnit.getToolGroupName() : "Herramienta #" + loan.getToolUnitId();
+
+                            return new LoanActiveDTO(
+                                    loan.getId(),
+                                    customerName,
+                                    toolName,
+                                    loan.getLoanDate(),
+                                    loan.getDueDate(),
+                                    loan.getReturnDate(),
+                                    loan.getFineAmount() != null ? loan.getFineAmount() : 0.0,
+                                    loan.getDamageCharge() != null ? loan.getDamageCharge() : 0.0,
+                                    loan.getStatus().toString()
+                            );
+                        } catch (Exception e) {
+                            log.error("❌ Error mapeando préstamo activo ID {}: {}", loan.getId(), e.getMessage());
+                            return new LoanActiveDTO(
+                                    loan.getId(),
+                                    "Error al cargar cliente",
+                                    "Error al cargar herramienta",
+                                    loan.getLoanDate(),
+                                    loan.getDueDate(),
+                                    loan.getReturnDate(),
+                                    0.0,
+                                    0.0,
+                                    "ERROR"
+                            );
+                        }
+                    })
+                    .filter(dto -> dto != null)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("❌ Error catastrófico obteniendo préstamos activos: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
     }
 
     public List<LoanActiveDTO> getReturnedWithDebts() {
-        List<LoanEntity> loans = loanRepository.findReturnedWithDebts();
+        try {
+            log.info("🟢 Obteniendo préstamos devueltos con deudas...");
 
-        return loans.stream().map(loan -> {
-            CustomerModel customer = getCustomerInfo(loan.getCustomerId());
-            ToolUnitModel toolUnit = getToolUnitInfo(loan.getToolUnitId());
+            // Obtener préstamos con deudas usando múltiples métodos
+            List<LoanEntity> loans = new ArrayList<>();
 
-            return new LoanActiveDTO(
-                    loan.getId(),
-                    customer != null ? customer.getName() : "Desconocido",
-                    toolUnit != null ? toolUnit.getToolGroupName() : "Desconocido",
-                    loan.getLoanDate(),
-                    loan.getDueDate(),
-                    loan.getReturnDate(),
-                    loan.getFineAmount(),
-                    loan.getDamageCharge(),
-                    loan.getStatus().toString()
-            );
-        }).collect(Collectors.toList());
+            try {
+                loans = loanRepository.findReturnedWithDebts();
+                log.info("📊 Consulta JPQL estándar: {} resultados", loans.size());
+            } catch (Exception e1) {
+                log.warn("⚠️ Falló consulta estándar, intentando alternativa: {}", e1.getMessage());
+
+                try {
+                    loans = loanRepository.findReturnedWithDebtsCoalesced();
+                    log.info("📊 Consulta COALESCE: {} resultados", loans.size());
+                } catch (Exception e2) {
+                    log.warn("⚠️ Falló COALESCE, usando método manual: {}", e2.getMessage());
+
+                    // Método manual como último recurso
+                    loans = loanRepository.findByReturnDateIsNotNull().stream()
+                            .filter(loan -> {
+                                double fine = loan.getFineAmount() != null ? loan.getFineAmount() : 0.0;
+                                double damage = loan.getDamageCharge() != null ? loan.getDamageCharge() : 0.0;
+                                return fine > 0 || damage > 0;
+                            })
+                            .collect(Collectors.toList());
+                    log.info("📊 Método manual: {} resultados", loans.size());
+                }
+            }
+
+            if (loans.isEmpty()) {
+                log.info("✅ No hay préstamos devueltos con deudas");
+                return new ArrayList<>();
+            }
+
+            return loans.stream()
+                    .map(loan -> {
+                        try {
+                            CustomerModel customer = null;
+                            try {
+                                customer = customerClient.getCustomer(loan.getCustomerId());
+                            } catch (Exception e) {
+                                log.warn("⚠️ No se pudo obtener cliente {}: {}", loan.getCustomerId(), e.getMessage());
+                            }
+
+                            ToolUnitModel toolUnit = null;
+                            try {
+                                toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
+                            } catch (Exception e) {
+                                log.warn("⚠️ No se pudo obtener herramienta {}: {}", loan.getToolUnitId(), e.getMessage());
+                            }
+
+                            String customerName = customer != null ? customer.getName() : "Cliente #" + loan.getCustomerId();
+                            String toolName = toolUnit != null ? toolUnit.getToolGroupName() : "Herramienta #" + loan.getToolUnitId();
+
+                            return new LoanActiveDTO(
+                                    loan.getId(),
+                                    customerName,
+                                    toolName,
+                                    loan.getLoanDate(),
+                                    loan.getDueDate(),
+                                    loan.getReturnDate(),
+                                    loan.getFineAmount() != null ? loan.getFineAmount() : 0.0,
+                                    loan.getDamageCharge() != null ? loan.getDamageCharge() : 0.0,
+                                    "RETURNED_WITH_DEBTS"
+                            );
+                        } catch (Exception e) {
+                            log.error("❌ Error mapeando préstamo con deudas ID {}: {}", loan.getId(), e.getMessage());
+                            return null;
+                        }
+                    })
+                    .filter(dto -> dto != null)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("❌ Error catastrófico obteniendo préstamos con deudas: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
     }
 
     public List<LoanActiveDTO> getOverdueLoans() {

@@ -5,14 +5,17 @@ import com.example.loans_service.dto.LoanRequestDTO;
 import com.example.loans_service.dto.LoanResponseDTO;
 import com.example.loans_service.service.LoanService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/loans")
 @RequiredArgsConstructor
+@Slf4j
 public class LoanController {
 
     private final LoanService loanService;
@@ -34,19 +37,29 @@ public class LoanController {
 
     @GetMapping("/active")
     public ResponseEntity<List<LoanActiveDTO>> getActiveLoans() {
-        List<LoanActiveDTO> loans = loanService.getActiveLoans();
-        return ResponseEntity.ok(loans);
+        try {
+            List<LoanActiveDTO> loans = loanService.getActiveLoans();
+            return ResponseEntity.ok(loans != null ? loans : new ArrayList<>());
+        } catch (Exception e) {
+            log.error("❌ Error en endpoint /active: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(new ArrayList<>());
+        }
+    }
+
+    @GetMapping("/returned-with-debts")
+    public ResponseEntity<List<LoanActiveDTO>> getReturnedWithDebts() {
+        try {
+            List<LoanActiveDTO> loans = loanService.getReturnedWithDebts();
+            return ResponseEntity.ok(loans != null ? loans : new ArrayList<>());
+        } catch (Exception e) {
+            log.error("❌ Error en endpoint /returned-with-debts: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(new ArrayList<>());
+        }
     }
 
     @GetMapping("/overdue")
     public ResponseEntity<List<LoanActiveDTO>> getOverdueLoans() {
         List<LoanActiveDTO> loans = loanService.getOverdueLoans();
-        return ResponseEntity.ok(loans);
-    }
-
-    @GetMapping("/returned-with-debts")
-    public ResponseEntity<List<LoanActiveDTO>> getReturnedWithDebts() {
-        List<LoanActiveDTO> loans = loanService.getReturnedWithDebts();
         return ResponseEntity.ok(loans);
     }
 

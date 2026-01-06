@@ -36,9 +36,17 @@ const LoanView = () => {
   };
 
   const loadPendingPayment = async () => {
+  try {
     const res = await loanService.getReturnedWithDebts();
-    setDebts(res.data);
-  };
+    console.log("📊 Préstamos con deudas recibidos:", res.data);
+    console.log("📊 Cantidad de deudas:", res.data?.length || 0);
+    setDebts(Array.isArray(res.data) ? res.data : []);
+  } catch (e) {
+    console.error("❌ Error cargando préstamos con deudas:", e);
+    console.error("📄 Respuesta error:", e.response?.data);
+    setDebts([]);
+  }
+};
 
   const loadCustomers = async () => {
     const res = await customerService.getActive();

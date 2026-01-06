@@ -34,9 +34,17 @@ public interface LoanRepository extends JpaRepository<LoanEntity, Long> {
     boolean existsByCustomerIdAndToolGroupIdAndReturnDateIsNull(Long customerId, Long toolGroupId);
 
     // Préstamos devueltos con deudas
-    @Query("SELECT l FROM LoanEntity l WHERE l.returnDate IS NOT NULL AND (l.fineAmount > 0 OR l.damageCharge > 0)")
+    // Métodos para obtener préstamos con deudas
+    @Query("SELECT l FROM LoanEntity l WHERE l.returnDate IS NOT NULL " +
+            "AND (l.fineAmount > 0 OR l.damageCharge > 0)")
     List<LoanEntity> findReturnedWithDebts();
 
+    @Query("SELECT l FROM LoanEntity l WHERE l.returnDate IS NOT NULL " +
+            "AND (COALESCE(l.fineAmount, 0) > 0 OR COALESCE(l.damageCharge, 0) > 0)")
+    List<LoanEntity> findReturnedWithDebtsCoalesced();
+
+    // Método básico como respaldo
+    List<LoanEntity> findByReturnDateIsNotNull();
     // Último préstamo devuelto de una unidad
     Optional<LoanEntity> findTopByToolUnitIdAndReturnDateIsNotNullOrderByReturnDateDesc(Long toolUnitId);
 

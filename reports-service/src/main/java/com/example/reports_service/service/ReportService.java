@@ -166,6 +166,14 @@ public class ReportService {
                     }
                 }
 
+                // Determinar estado del préstamo basado en la situación
+                String loanStatus = "SIN PRÉSTAMOS";
+                if (activeCount > 0) {
+                    loanStatus = "ACTIVO";
+                } else if (resolvedCount > 0) {
+                    loanStatus = "RESUELTO";
+                }
+
                 result.add(new CustomerDelayReportDTO(
                         customerName,
                         customerRut,
@@ -174,7 +182,7 @@ public class ReportService {
                         resolvedCount,
                         maxDaysOverdue,
                         totalDebt,
-                        status
+                        loanStatus  // ← NUEVO CAMPO
                 ));
             }
 
@@ -194,6 +202,7 @@ public class ReportService {
                             5L,
                             120000.0,
                             "ACTIVO"
+
                     )
             );
         }

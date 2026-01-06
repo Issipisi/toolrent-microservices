@@ -15,5 +15,5 @@ public class CustomerDelayReportDTO {
     private Integer activeLoansCount; // ✅ Nuevo: préstamos activos
     private Long maxDaysOverdue;
     private Double totalDebt;
-    private String status; // "ACTIVO" o "RESUELTO"
+    private String loanStatus; // ← NUEVO: Estado del préstamo (Resuelto/Activo/Pendiente)
 }

@@ -116,6 +116,7 @@ const ReportView = () => {
                     <>
                       <TableCell>Nombre</TableCell>
                       <TableCell>Deuda ($)</TableCell>
+                      <TableCell>Estado Préstamo</TableCell>
                       <TableCell>Préstamos vencidos</TableCell>
                       <TableCell>Días de atraso</TableCell>
                     </>
@@ -144,13 +145,14 @@ const ReportView = () => {
                       </>
                     )}
                     {title === "Clientes con deudas" && (
-                      <>
-                        <TableCell>{row.customerName}</TableCell>
-                        <TableCell>{row.totalDebt?.toLocaleString() || 0}</TableCell>
-                        <TableCell>{row.overdueLoansCount || 0}</TableCell>
-                        <TableCell>{row.maxDaysOverdue || 0}</TableCell>
-                      </>
-                    )}
+                        <>
+                          <TableCell>{row.customerName}</TableCell>
+                          <TableCell>{row.totalDebt?.toLocaleString() || 0}</TableCell>
+                          <TableCell>{row.loanStatus || "SIN ESTADO"}</TableCell>
+                          <TableCell>{row.overdueLoansCount || 0}</TableCell>
+                          <TableCell>{row.maxDaysOverdue || 0}</TableCell>
+                        </>
+                      )}
                     {title === "Ranking de Herramientas por Préstamos" && (
                       <>
                         <TableCell>{row.toolName}</TableCell>

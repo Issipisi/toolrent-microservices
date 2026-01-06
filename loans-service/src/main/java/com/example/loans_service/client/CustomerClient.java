@@ -8,12 +8,18 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "customers-service", path = "/api/customers")
 public interface CustomerClient {
 
-    @GetMapping("/{id}")
+    /*@GetMapping("/{id}")
     CustomerModel getCustomer(@PathVariable Long id);
 
     @GetMapping("/{id}/validate-loan")
-    CustomerModel validateForLoan(@PathVariable Long id);
+    CustomerModel validateForLoan(@PathVariable Long id);*/
 
     @GetMapping("/{id}/active-count")
     Integer getActiveLoansCount(@PathVariable Long id);
+
+    @GetMapping("/{id}")
+    CustomerModel getCustomer(@PathVariable("id") Long id);
+
+    @GetMapping("/{id}/validate-loan")
+    CustomerModel validateForLoan(@PathVariable("id") Long id);
 }

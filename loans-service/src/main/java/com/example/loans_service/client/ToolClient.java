@@ -11,12 +11,21 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "tools-service", path = "/api/tools/units")
 public interface ToolClient {
 
-    @GetMapping("/groups/{groupId}/available")
+    /*@GetMapping("/groups/{groupId}/available")
     ToolUnitModel getAvailableUnit(@PathVariable Long groupId);
 
     @GetMapping("/{unitId}/model")  // <- NUEVO endpoint específico
     ToolUnitModel getToolUnit(@PathVariable Long unitId);
 
     @PutMapping("/{unitId}/status")
-    void updateStatus(@PathVariable Long unitId, @RequestParam String status);
+    void updateStatus(@PathVariable Long unitId, @RequestParam String status);*/
+
+    @GetMapping("/groups/{groupId}/available")
+    ToolUnitModel getAvailableUnit(@PathVariable("groupId") Long toolGroupId);
+
+    @GetMapping("/{id}")
+    ToolUnitModel getToolUnit(@PathVariable("id") Long id);
+
+    @PutMapping("/{id}/status")
+    void updateStatus(@PathVariable("id") Long id, @RequestParam String status);
 }
