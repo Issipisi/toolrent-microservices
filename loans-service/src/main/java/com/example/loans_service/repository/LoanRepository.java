@@ -40,18 +40,12 @@ public interface LoanRepository extends JpaRepository<LoanEntity, Long> {
     // Método básico como respaldo
     List<LoanEntity> findByReturnDateIsNotNull();
 
-    // Préstamos de un cliente activos
-    List<LoanEntity> findByCustomerIdAndReturnDateIsNull(Long customerId);
+    long countByCustomerIdAndReturnDateIsNullAndDueDateBefore(Long customerId, LocalDateTime date);
 
-    // Verificar si cliente tiene préstamos vencidos
-    boolean existsByCustomerIdAndReturnDateIsNullAndDueDateBefore(Long customerId, LocalDateTime date);
+    @Query("SELECT COALESCE(SUM(l.fineAmount), 0) FROM LoanEntity l WHERE l.customerId = :customerId AND l.returnDate IS NOT NULL AND l.fineAmount > 0")
+    Double sumUnpaidFinesByCustomer(@Param("customerId") Long customerId);
 
-    // Último préstamo devuelto de una unidad
-    Optional<LoanEntity> findTopByToolUnitIdAndReturnDateIsNotNullOrderByReturnDateDesc(Long toolUnitId);
+    @Query("SELECT COALESCE(SUM(l.damageCharge), 0) FROM LoanEntity l WHERE l.customerId = :customerId AND l.returnDate IS NOT NULL AND l.damageCharge > 0")
+    Double sumUnpaidDamageByCustomer(@Param("customerId") Long customerId);
 
-    // Préstamos con multas pendientes
-    List<LoanEntity> findByReturnDateIsNotNullAndFineAmountGreaterThan(Double amount);
-
-    // Préstamos con daños pendientes
-    List<LoanEntity> findByReturnDateIsNotNullAndDamageChargeGreaterThan(Double amount);
 }

@@ -86,6 +86,32 @@ public class LoanController {
         return ResponseEntity.ok(loans);
     }
 
+
+    //Datos Customer
+    @GetMapping("/{customerId}/active-count")
+    public ResponseEntity<Integer> getActiveLoansCount(@PathVariable Long customerId) {
+        int count = loanService.getActiveLoans().size(); // o usar query directa
+        return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/{customerId}/overdue-count")
+    public ResponseEntity<Long> getOverdueLoansCount(@PathVariable Long customerId) {
+        long count = loanService.getOverdueLoansCount(customerId);
+        return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/{customerId}/unpaid-fines-sum")
+    public ResponseEntity<Double> getUnpaidFinesSum(@PathVariable Long customerId) {
+        double sum = loanService.getUnpaidFinesSum(customerId);
+        return ResponseEntity.ok(sum);
+    }
+
+    @GetMapping("/{customerId}/unpaid-damage-sum")
+    public ResponseEntity<Double> getUnpaidDamageSum(@PathVariable Long customerId) {
+        double sum = loanService.getUnpaidDamageSum(customerId);
+        return ResponseEntity.ok(sum);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<String> handleRuntimeException(RuntimeException ex) {
         return ResponseEntity.badRequest().body(ex.getMessage());

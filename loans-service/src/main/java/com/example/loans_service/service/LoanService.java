@@ -37,10 +37,10 @@ public class LoanService {
         // 1. Parsear fecha
         LocalDateTime dueDate = LocalDateTime.parse(request.getDueDate());
 
-        /* 2. Validar fecha
+        // 2. Validar fecha
         if (dueDate.isBefore(LocalDateTime.now())) {
             throw new RuntimeException("La fecha de devolución no puede ser anterior a la actual");
-        }*/
+        }
 
         // 3. Validar cliente
         CustomerModel customer = customerClient.validateForLoan(request.getCustomerId());
@@ -323,6 +323,25 @@ public class LoanService {
         }).collect(Collectors.toList());
     }
 
+    public List<LoanActiveDTO> getAllClosedLoans() {
+        List<LoanEntity> closedLoans = loanRepository.findByReturnDateIsNotNull();
+        return closedLoans.stream().map(loan -> {
+            CustomerModel customer = getCustomerInfo(loan.getCustomerId());
+            ToolUnitModel tool = getToolUnitInfo(loan.getToolUnitId());
+            return new LoanActiveDTO(
+                    loan.getId(),
+                    customer != null ? customer.getName() : "Desconocido",
+                    tool != null ? tool.getToolGroupName() : "Desconocido",
+                    loan.getLoanDate(),
+                    loan.getDueDate(),
+                    loan.getReturnDate(),
+                    loan.getFineAmount() != null ? loan.getFineAmount() : 0.0,
+                    loan.getDamageCharge() != null ? loan.getDamageCharge() : 0.0,
+                    "RETURNED"
+            );
+        }).collect(Collectors.toList());
+    }
+
     @Transactional
     public void payDebts(Long loanId) {
         LoanEntity loan = loanRepository.findById(loanId)
@@ -381,6 +400,18 @@ public class LoanService {
         }
     }
 
+    public long getOverdueLoansCount(Long customerId) {
+        return loanRepository.countByCustomerIdAndReturnDateIsNullAndDueDateBefore(customerId, LocalDateTime.now());
+    }
+
+    public double getUnpaidFinesSum(Long customerId) {
+        return loanRepository.sumUnpaidFinesByCustomer(customerId);
+    }
+
+    public double getUnpaidDamageSum(Long customerId) {
+        return loanRepository.sumUnpaidDamageByCustomer(customerId);
+    }
+
     private void validateLoanLimits(Long customerId, Long toolGroupId) {
         // Máximo 5 préstamos activos
         long activeLoans = loanRepository.countByCustomerIdAndReturnDateIsNull(customerId);
@@ -417,24 +448,7 @@ public class LoanService {
         }
     }
 
-    public List<LoanActiveDTO> getAllClosedLoans() {
-        List<LoanEntity> closedLoans = loanRepository.findByReturnDateIsNotNull();
-        return closedLoans.stream().map(loan -> {
-            CustomerModel customer = getCustomerInfo(loan.getCustomerId());
-            ToolUnitModel tool = getToolUnitInfo(loan.getToolUnitId());
-            return new LoanActiveDTO(
-                    loan.getId(),
-                    customer != null ? customer.getName() : "Desconocido",
-                    tool != null ? tool.getToolGroupName() : "Desconocido",
-                    loan.getLoanDate(),
-                    loan.getDueDate(),
-                    loan.getReturnDate(),
-                    loan.getFineAmount() != null ? loan.getFineAmount() : 0.0,
-                    loan.getDamageCharge() != null ? loan.getDamageCharge() : 0.0,
-                    "RETURNED"
-            );
-        }).collect(Collectors.toList());
-    }
+
 
     private LoanResponseDTO mapToResponseDTO(LoanEntity loan, String customerName, String toolName) {
         return new LoanResponseDTO(

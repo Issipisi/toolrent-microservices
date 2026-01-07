@@ -1,5 +1,6 @@
 package com.example.customers_service.service;
 
+import com.example.customers_service.client.LoanClient;
 import com.example.customers_service.dto.*;
 import com.example.customers_service.entity.CustomerEntity;
 import com.example.customers_service.entity.CustomerStatus;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final LoanClient loanClient;
 
     @Transactional
     public CustomerResponseDTO createCustomer(CustomerRequestDTO request) {
@@ -51,17 +53,20 @@ public class CustomerService {
         CustomerEntity customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
 
+        // Obtener datos reales desde Loan Service
+        int activeCount = loanClient.getActiveLoansCount(customerId);
+        long overdueCount = loanClient.getOverdueLoansCount(customerId);
+        double unpaidFines = loanClient.getUnpaidFinesSum(customerId);
+        double unpaidDamage = loanClient.getUnpaidDamageSum(customerId);
+
         CustomerValidationDTO dto = new CustomerValidationDTO();
         dto.setId(customer.getId());
         dto.setName(customer.getName());
         dto.setStatus(customer.getStatus().toString());
-
-        // IMPORTANTE: Estos valores los calculará Loan Service después
-        // Por ahora los dejamos en false/0
-        dto.setHasOverdueLoans(false);
-        dto.setHasUnpaidFines(false);
-        dto.setHasUnpaidDamage(false);
-        dto.setActiveLoansCount(0);
+        dto.setHasOverdueLoans(overdueCount > 0);
+        dto.setHasUnpaidFines(unpaidFines > 0);
+        dto.setHasUnpaidDamage(unpaidDamage > 0);
+        dto.setActiveLoansCount(activeCount);
 
         return dto;
     }
