@@ -9,12 +9,6 @@ const getCustomersWithDelaysReport = () => {
   return api.get('/api/reports/customers-with-delays');
 };
 
-const getMostBorrowedToolsReport = (startDate, endDate) => {
-  return api.get('/api/reports/most-borrowed-tools', {
-    params: { startDate, endDate }
-  });
-};
-
 
 const getToolRanking = () => {
   return api.get('/api/reports/tool-ranking');
@@ -22,7 +16,6 @@ const getToolRanking = () => {
 
 export default { 
   getActiveLoansReport, 
-  getCustomersWithDelaysReport, 
-  getMostBorrowedToolsReport,
+  getCustomersWithDelaysReport,
   getToolRanking 
 };

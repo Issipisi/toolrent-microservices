@@ -9,9 +9,12 @@ const getToolGroup = (id) => {
   return api.get(`/api/tools/groups/${id}`);
 };
 
-const createToolGroup = (toolGroupData) => {
-  return api.post('/api/tools/groups', toolGroupData);
+const createToolGroup = (toolGroupData, userName) => {
+  return api.post('/api/tools/groups', toolGroupData, {
+    params: { userName } // ← ambos
+  });
 };
+
 
 const updateTariff = (groupId, dailyRentalRate, dailyFineRate) => {
   return api.put(`/api/tools/groups/${groupId}/tariff`, null, {

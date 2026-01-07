@@ -208,10 +208,10 @@ public class ReportService {
         }
     }
 
-    // RF6.3: Reporte de herramientas más prestadas (Ranking)
+    /// RF6.3: Reporte de herramientas más prestadas (Ranking) - CORREGIDO
     public List<ToolRankingDTO> getToolRankingByLoans() {
         try {
-            log.info("=== Generando ranking de herramientas ===");
+            log.info("=== Generando ranking de herramientas (TODOS los préstamos) ===");
 
             // 1. Obtener todas las herramientas disponibles
             List<ToolGroupModel> allTools;
@@ -228,25 +228,24 @@ public class ReportService {
                 return getDemoData();
             }
 
-            // 2. Obtener todos los préstamos disponibles
+            // 2. Obtener TODOS los préstamos históricos
             List<LoanActiveDTO> allLoans = new ArrayList<>();
 
-            // Intentar todos los endpoints de préstamos
-            String[] endpoints = {"activos", "vencidos", "devueltos con deudas"};
-            Runnable[] loanFetchers = {
-                    () -> allLoans.addAll(loanClient.getActiveLoans()),
-                    () -> allLoans.addAll(loanClient.getOverdueLoans()),
-                    () -> allLoans.addAll(loanClient.getReturnedWithDebts())
-            };
+            // ✅ NUEVO: préstamos cerrados (devueltos sin deuda)
+            try {
+                allLoans.addAll(loanClient.getAllClosedLoans());
+                log.info("Préstamos cerrados obtenidos: {}", allLoans.size());
+            } catch (Exception e) {
+                log.warn("Error obteniendo préstamos cerrados: {}", e.getMessage());
+            }
 
-            for (int i = 0; i < loanFetchers.length; i++) {
-                try {
-                    loanFetchers[i].run();
-                    log.info("Préstamos {} obtenidos: {}", endpoints[i],
-                            allLoans.size() - (i > 0 ? getPreviousCount(allLoans, i) : 0));
-                } catch (Exception e) {
-                    log.warn("Error obteniendo préstamos {}: {}", endpoints[i], e.getMessage());
-                }
+            // Los que ya tenías
+            try {
+                allLoans.addAll(loanClient.getActiveLoans());
+                allLoans.addAll(loanClient.getOverdueLoans());
+                allLoans.addAll(loanClient.getReturnedWithDebts());
+            } catch (Exception e) {
+                log.warn("Error obteniendo préstamos activos/vencidos/con deuda: {}", e.getMessage());
             }
 
             log.info("Total de préstamos para analizar: {}", allLoans.size());
@@ -270,12 +269,13 @@ public class ReportService {
             List<ToolRankingDTO> ranking = new ArrayList<>();
 
             for (ToolGroupModel tool : allTools) {
-                // Buscar coincidencia por nombre (insensible a mayúsculas)
                 Long loanCount = 0L;
+
+                // Buscar coincidencia por nombre (insensible a mayúsculas)
                 for (Map.Entry<String, Long> entry : loanCountByToolName.entrySet()) {
                     if (tool.getName() != null && entry.getKey() != null &&
-                            tool.getName().toLowerCase().contains(entry.getKey().toLowerCase()) ||
-                            entry.getKey().toLowerCase().contains(tool.getName().toLowerCase())) {
+                            (tool.getName().toLowerCase().contains(entry.getKey().toLowerCase()) ||
+                                    entry.getKey().toLowerCase().contains(tool.getName().toLowerCase()))) {
                         loanCount = entry.getValue();
                         break;
                     }

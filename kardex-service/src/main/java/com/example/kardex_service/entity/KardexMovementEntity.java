@@ -17,7 +17,7 @@ public class KardexMovementEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tool_unit_id", nullable = false)
+    @Column(name = "tool_unit_id")
     private Long toolUnitId;
 
     @Column(name = "tool_group_id", nullable = false)
@@ -27,7 +27,7 @@ public class KardexMovementEntity {
     private Long customerId;        // <- Puede ser null
 
     @Column(name = "user_id", nullable = false)
-    private Long userId = 0L;  // Valor por defecto para usuario SISTEMA
+    private String userId = "Sistema";  // Valor por defecto para usuario SISTEMA, me equivoqué y era 0
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

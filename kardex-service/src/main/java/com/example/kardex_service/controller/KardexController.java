@@ -112,15 +112,16 @@ public class KardexController {
         return ResponseEntity.ok(movement);
     }
 
-    @PostMapping("/movements/loan")
+    /*@PostMapping("/movements/loan")
     public ResponseEntity<KardexResponseDTO> registerLoan(
             @RequestParam Long toolUnitId,
             @RequestParam Long toolGroupId,
             @RequestParam Long customerId,
-            @RequestParam String customerName) {
-        KardexResponseDTO movement = kardexService.registerLoan(toolUnitId, toolGroupId, customerId, customerName);
+            @RequestParam String customerName,
+            @RequestParam String userName) {
+        KardexResponseDTO movement = kardexService.registerLoan(toolUnitId, toolGroupId, customerId, customerName, userName);
         return ResponseEntity.ok(movement);
-    }
+    }*/
 
     @PostMapping("/movements/return")
     public ResponseEntity<KardexResponseDTO> registerReturn(
@@ -155,13 +156,17 @@ public class KardexController {
         return ResponseEntity.ok(movement);
     }
 
+    // 3. RETIRE: retiro definitivo (ya lo tienes, pero añade userId)
     @PostMapping("/movements/retirement")
     public ResponseEntity<KardexResponseDTO> registerRetirement(
             @RequestParam Long toolUnitId,
             @RequestParam Long toolGroupId,
             @RequestParam String reason,
-            @RequestParam(required = false) Long customerId) {
-        KardexResponseDTO movement = kardexService.registerRetirement(toolUnitId, toolGroupId, reason, customerId);
+            @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String userId) {
+
+        KardexResponseDTO movement = kardexService.registerRetirement(
+                toolUnitId, toolGroupId, reason, customerId, userId);
         return ResponseEntity.ok(movement);
     }
 
@@ -170,19 +175,6 @@ public class KardexController {
         return ResponseEntity.ok("Kardex Service funcionando correctamente!");
     }
 
-    // KardexController.java - Solo modificar el endpoint de RE_ENTRY
-    @PostMapping("/movements/re-entry")
-    public ResponseEntity<KardexResponseDTO> registerReEntry(
-            @RequestParam Long toolUnitId,
-            @RequestParam Long toolGroupId,
-            @RequestParam(required = false) Double repairCost,
-            @RequestParam(required = false) String notes,
-            @RequestParam(required = false) Long userId) {
-
-        KardexResponseDTO movement = kardexService.registerReEntry(
-                toolUnitId, toolGroupId, repairCost, notes, userId);
-        return ResponseEntity.ok(movement);
-    }
 
     @PostMapping("/status-change")
     public ResponseEntity<Void> registerStatusChange(
@@ -203,13 +195,80 @@ public class KardexController {
         return ResponseEntity.ok().build();
     }
 
+    // 1. REGISTRY: creación de grupo de herramientas
     @PostMapping("/tools-batch-creation")
-    public ResponseEntity<Void> registerToolsBatchCreation(
+    public ResponseEntity<KardexResponseDTO> registerToolsBatchCreation(
             @RequestParam Long toolGroupId,
             @RequestParam String toolGroupName,
             @RequestParam Integer quantity,
-            @RequestParam String notes) {
+            @RequestParam(required = false) String userName){
 
-        return ResponseEntity.ok().build();
+        KardexResponseDTO movement = kardexService.registerToolsBatchCreation(
+                toolGroupId, toolGroupName, quantity, userName);
+        return ResponseEntity.ok(movement);
     }
+
+
+    @PostMapping("/movements/loan")
+    public ResponseEntity<KardexResponseDTO> registerLoan(
+            @RequestParam Long toolUnitId,
+            @RequestParam Long toolGroupId,
+            @RequestParam Long customerId,
+            @RequestParam String customerName,
+            @RequestParam String userName) {
+
+        KardexResponseDTO movement = kardexService.registerLoan(toolUnitId, toolGroupId, customerId, customerName, userName);
+        return ResponseEntity.ok(movement);
+    }
+
+
+
+    // ===== TOOL-UNIT EXCLUSIVOS =====
+    @PostMapping("/tool-unit/send-to-repair")
+    public ResponseEntity<KardexResponseDTO> registerSendToRepair(
+            @RequestParam Long toolUnitId,
+            @RequestParam Long toolGroupId,
+            @RequestParam String toolGroupName,
+            @RequestParam String userName) {
+
+        KardexResponseDTO movement = kardexService.registerSendToRepairUnit(toolUnitId, toolGroupId, toolGroupName, userName);
+        return ResponseEntity.ok(movement);
+    }
+
+    @PostMapping("/tool-unit/retirement")
+    public ResponseEntity<KardexResponseDTO> registerRetirement(
+            @RequestParam Long toolUnitId,
+            @RequestParam Long toolGroupId,
+            @RequestParam String toolGroupName,
+            @RequestParam String userName) {
+
+        KardexResponseDTO movement = kardexService.registerRetirementUnit(toolUnitId, toolGroupId, toolGroupName, userName);
+        return ResponseEntity.ok(movement);
+    }
+
+    @PostMapping("/tool-unit/re-entry")
+    public ResponseEntity<KardexResponseDTO> registerReEntry(
+            @RequestParam Long toolUnitId,
+            @RequestParam Long toolGroupId,
+            @RequestParam String toolGroupName,
+            @RequestParam String userName) {
+
+        KardexResponseDTO movement = kardexService.registerReEntry(toolUnitId, toolGroupId, toolGroupName, userName);
+        return ResponseEntity.ok(movement);
+    }
+
+
+    /* RE_ENTRY: reingreso desde reparación
+    @PostMapping("/movements/re-entry")
+    public ResponseEntity<KardexResponseDTO> registerReEntry(
+            @RequestParam Long toolUnitId,
+            @RequestParam Long toolGroupId,
+            @RequestParam(required = false) Double repairCost,
+            @RequestParam(required = false) String notes,
+            @RequestParam(required = false) String userId) {
+
+        KardexResponseDTO movement = kardexService.registerReEntry(
+                toolUnitId, toolGroupId, repairCost, notes, userId);
+        return ResponseEntity.ok(movement);
+    }*/
 }

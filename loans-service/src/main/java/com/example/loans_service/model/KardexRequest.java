@@ -8,8 +8,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class KardexRequest {
-    private String movementType; // "LOAN", "RETURN", "RETIRE", etc.
+    private MovementType movementType;
     private Long toolUnitId;
+    private Long toolGroupId;
     private Long customerId;
     private String details;
+    private String userId;
 }
+

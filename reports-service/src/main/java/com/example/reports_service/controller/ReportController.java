@@ -29,23 +29,6 @@ public class ReportController {
         return ResponseEntity.ok(reportService.getCustomersWithDelaysReport());
     }
 
-    /* RF6.3
-    @GetMapping("/most-borrowed-tools")
-    public ResponseEntity<List<MostBorrowedToolDTO>> getMostBorrowedTools(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-
-        // Si no se proporcionan fechas, usar últimos 30 días
-        if (startDate == null) {
-            startDate = LocalDate.now().minusDays(30);
-        }
-        if (endDate == null) {
-            endDate = LocalDate.now();
-        }
-
-        return ResponseEntity.ok(reportService.getMostBorrowedToolsReport(startDate, endDate));
-    }*/
-
     @GetMapping("/tool-ranking")
     public ResponseEntity<List<ToolRankingDTO>> getToolRanking() {
         return ResponseEntity.ok(reportService.getToolRankingByLoans());

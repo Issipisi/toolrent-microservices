@@ -14,5 +14,5 @@ public class KardexRequest {
     private Long toolGroupId;
     private Long customerId;
     private String details;
-    private Long userId; // Opcional, si no se envía se usa SYSTEM
+    private String userId; // Opcional, si no se envía se usa SYSTEM
 }

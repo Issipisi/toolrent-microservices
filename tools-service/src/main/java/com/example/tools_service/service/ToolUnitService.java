@@ -9,7 +9,6 @@ import com.example.tools_service.entity.ToolGroupEntity; // Import necesario
 import com.example.tools_service.model.TariffModel;
 import com.example.tools_service.model.ToolUnitModel;
 import com.example.tools_service.repository.ToolUnitRepository;
-import com.example.tools_service.repository.ToolGroupRepository; // Import necesario
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +25,7 @@ public class ToolUnitService {
     private final ToolUnitRepository toolUnitRepository;
     private final TariffClient tariffClient;
     private final KardexClient kardexClient;
-    private final ToolGroupRepository toolGroupRepository;
+
 
     public ToolUnitModel getAvailableUnit(Long toolGroupId) {
         log.info("Buscando unidad disponible para grupo: {}", toolGroupId);
@@ -72,34 +71,47 @@ public class ToolUnitService {
     }
 
     // ===== MÉTODO PRINCIPAL: changeStatus con Kardex =====
+    // ===== MÉTODO: cambio de estado + kardex =====
     @Transactional
-    public void updateStatus(Long unitId, String status) {
+    public void updateStatus(Long unitId, String status, String userName) {
         ToolStatus newStatus;
         try {
             newStatus = ToolStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid status: " + status);
+            throw new RuntimeException("Estado inválido: " + status);
         }
 
         ToolUnitEntity unit = toolUnitRepository.findByIdWithGroup(unitId)
-                .orElseThrow(() -> new RuntimeException("Unit not found"));
+                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
 
         if (unit.getStatus() == ToolStatus.RETIRED) {
-            throw new RuntimeException("Cannot change status of a retired unit");
+            throw new RuntimeException("No se puede cambiar el estado de una unidad retirada");
         }
-
         if (unit.getStatus() == newStatus) {
-            throw new RuntimeException("Unit is already in status: " + newStatus);
+            throw new RuntimeException("La unidad ya está en estado: " + newStatus);
         }
 
         ToolStatus oldStatus = unit.getStatus();
         unit.setStatus(newStatus);
-        ToolUnitEntity savedUnit = toolUnitRepository.save(unit);
+        toolUnitRepository.save(unit);
+        log.info("Unidad {} cambió de {} a {}", unitId, oldStatus, newStatus);
 
-        log.info("Unit {} changed status: {} -> {}", unitId, oldStatus, newStatus);
-
-        // Registrar en kardex según el cambio
-        registerKardexMovement(unit, oldStatus, newStatus);
+        // >>> KARDEX – según el nuevo estado
+        switch (newStatus) {
+            case IN_REPAIR ->
+                    kardexClient.registerSendToRepairUnit(
+                            unitId,
+                            unit.getToolGroup().getId(),
+                            unit.getToolGroup().getName(),
+                            userName);
+            case RETIRED ->
+                    kardexClient.registerRetirementUnit(
+                            unitId,
+                            unit.getToolGroup().getId(),
+                            unit.getToolGroup().getName(),
+                            userName);
+            default -> { /* no generamos movimiento */ }
+        }
     }
 
     public ToolUnitResponseDTO getUnitDetails(Long unitId) {
@@ -173,9 +185,9 @@ public class ToolUnitService {
 
             // Acciones específicas según el estado
             switch (newStatus) {
-                case IN_REPAIR -> {
+                case IN_REPAIR ->
                     log.info("Kardex: Unit {} sent to repair", unit.getId());
-                }
+
                 case RETIRED -> {
                     // Reducir stock disponible (el stock se calcula dinámicamente)
                     ToolGroupEntity toolGroup = unit.getToolGroup();
@@ -207,7 +219,7 @@ public class ToolUnitService {
 
 
     @Transactional
-    public ToolUnitEntity repairResolution(Long unitId, boolean retire) {
+    public ToolUnitEntity repairResolution(Long unitId, boolean retire, String userName) {
         ToolUnitEntity unit = toolUnitRepository.findById(unitId)
                 .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
 
@@ -217,34 +229,12 @@ public class ToolUnitService {
 
         if (retire) {
             unit.setStatus(ToolStatus.RETIRED);
-            log.info("Unidad {} retirada después de reparación", unitId);
-
-            // Registrar en Kardex
-            try {
-                kardexClient.registerRetirement(
-                        unitId,
-                        unit.getToolGroup().getId(),
-                        "No reparable",
-                        null
-                );
-            } catch (Exception e) {
-                log.warn("Error registrando retiro en Kardex", e);
-            }
+            kardexClient.registerRetirementUnit(unitId, unit.getToolGroup().getId(),unit.getToolGroup().getName(), userName);
+            log.info("Unidad {} retirada tras reparación fallida", unitId);
         } else {
             unit.setStatus(ToolStatus.AVAILABLE);
-            log.info("Unidad {} disponible después de reparación", unitId);
-
-            // Registrar en Kardex
-            try {
-                kardexClient.registerReEntryFromRepair(
-                        unitId,
-                        unit.getToolGroup().getId(),
-                        null, // No conocemos el costo aquí
-                        true
-                );
-            } catch (Exception e) {
-                log.warn("Error registrando reingreso en Kardex", e);
-            }
+            kardexClient.registerReEntryUnit(unitId, unit.getToolGroup().getId(),unit.getToolGroup().getName(), userName);
+            log.info("Unidad {} disponible tras reparación exitosa", unitId);
         }
 
         return toolUnitRepository.save(unit);

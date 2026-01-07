@@ -30,7 +30,7 @@ public class LoanService {
     private final KardexClient kardexClient;
 
     @Transactional
-    public LoanResponseDTO registerLoan(LoanRequestDTO request) {
+    public LoanResponseDTO registerLoan(LoanRequestDTO request, String userName) {
         log.info("Registrando préstamo - Cliente: {}, Herramienta: {}",
                 request.getCustomerId(), request.getToolGroupId());
 
@@ -69,7 +69,7 @@ public class LoanService {
 
         // 8. Actualizar estado de herramienta
         try {
-            toolClient.updateStatus(toolUnit.getId(), "LOANED");
+            toolClient.updateStatus(toolUnit.getId(), "LOANED", userName);
         } catch (Exception e) {
             log.error("Error actualizando estado de herramienta", e);
             throw new RuntimeException("Error al actualizar estado de herramienta");
@@ -77,13 +77,15 @@ public class LoanService {
 
         // 9. Registrar en Kardex
         try {
-            KardexRequest kardexRequest = new KardexRequest(
-                    "LOAN",
-                    toolUnit.getId(),
-                    request.getCustomerId(),
-                    "Préstamo registrado - Cliente: " + request.getCustomerId()
-            );
-            kardexClient.registerMovement(kardexRequest);
+            KardexRequest requestKardex = new KardexRequest();
+            requestKardex.setMovementType(MovementType.LOAN);
+            requestKardex.setToolUnitId(toolUnit.getId());
+            requestKardex.setToolGroupId(request.getToolGroupId());
+            requestKardex.setCustomerId(request.getCustomerId());
+            requestKardex.setDetails("Préstamo a cliente: " + customer.getName());
+            requestKardex.setUserId(userName != null ? userName : "Sistema");
+
+            kardexClient.registerMovement(requestKardex);
         } catch (Exception e) {
             log.warn("Error registrando en Kardex, pero préstamo creado", e);
         }
@@ -92,7 +94,7 @@ public class LoanService {
     }
 
     @Transactional
-    public LoanResponseDTO returnLoan(Long loanId, Double damageCharge, boolean irreparable) {
+    public LoanResponseDTO returnLoan(Long loanId, Double damageCharge, boolean irreparable, String userName) {
         log.info("Devolviendo préstamo: {} - Daño: {} - Irreparable: {}",
                 loanId, damageCharge, irreparable);
 
@@ -101,6 +103,10 @@ public class LoanService {
 
         // 1. Actualizar fechas
         loan.setReturnDate(LocalDateTime.now());
+
+        // Obtener nombre del cliente para Kardex
+        CustomerModel customer = customerClient.getCustomer(loan.getCustomerId());
+        String customerName = customer != null ? customer.getName() : "Desconocido";
 
         // 2. Calcular multa por atraso
         if (loan.getReturnDate().isAfter(loan.getDueDate())) {
@@ -116,33 +122,33 @@ public class LoanService {
             loan.setStatus(LoanStatus.RETURNED);
 
             // Cambiar estado de herramienta a RETIRED
-            toolClient.updateStatus(loan.getToolUnitId(), "RETIRED");
+            toolClient.updateStatus(loan.getToolUnitId(), "RETIRED", userName);
 
-            // Registrar en Kardex como RETIRE
-            registerKardexMovement("RETIRE", loan, "Herramienta Retirada- Daño irreparable");
+            // No registrar aquí, ToolUnitService ya lo hará
+            log.info("Retiro por daño irreparable, ToolUnitService registrará en Kardex");
         } else if (damageCharge != null && damageCharge > 0) {
             loan.setDamageCharge(damageCharge);
             loan.setStatus(LoanStatus.RETURNED);
 
             // Cambiar estado a IN_REPAIR
-            toolClient.updateStatus(loan.getToolUnitId(), "IN_REPAIR");
+            toolClient.updateStatus(loan.getToolUnitId(), "IN_REPAIR", userName);
 
-            // Registrar en Kardex como REPAIR
-            registerKardexMovement("REPAIR", loan, "Herramienta en Reparación - Daño leve: " + damageCharge);
+            // No registrar aquí, ToolUnitService ya lo hará
+            log.info("Retiro por daño irreparable, ToolUnitService registrará en Kardex");
         } else {
             loan.setStatus(LoanStatus.RETURNED);
 
             // Liberar herramienta
-            toolClient.updateStatus(loan.getToolUnitId(), "AVAILABLE");
+            toolClient.updateStatus(loan.getToolUnitId(), "AVAILABLE", userName);
 
             // Registrar en Kardex como RETURN
-            registerKardexMovement("RETURN", loan, "Herramienta Disponible - Devolución normal");
+            registerKardexMovement("RETURN", loan,
+                    "Herramienta Disponible - Devolución normal", userName, customerName);
         }
 
         LoanEntity updatedLoan = loanRepository.save(loan);
 
         // Obtener datos para respuesta
-        CustomerModel customer = customerClient.getCustomer(loan.getCustomerId());
         ToolUnitModel toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
 
         return mapToResponseDTO(updatedLoan, customer.getName(), toolUnit.getToolGroupName());
@@ -150,12 +156,10 @@ public class LoanService {
 
     public List<LoanActiveDTO> getActiveLoans() {
         try {
-            log.info("🟢 Obteniendo préstamos activos...");
             List<LoanEntity> loans = loanRepository.findByReturnDateIsNull();
-            log.info("📊 Encontrados {} préstamos activos en BD", loans.size());
 
             if (loans.isEmpty()) {
-                log.info("✅ No hay préstamos activos");
+                log.info(" No hay préstamos activos");
                 return new ArrayList<>();
             }
 
@@ -167,7 +171,7 @@ public class LoanService {
                             try {
                                 customer = customerClient.getCustomer(loan.getCustomerId());
                             } catch (Exception e) {
-                                log.warn("⚠️ No se pudo obtener cliente {}: {}", loan.getCustomerId(), e.getMessage());
+                                //log.warn(" No se pudo obtener cliente {}: {}", loan.getCustomerId(), e.getMessage());
                             }
 
                             // Intentar obtener información de la herramienta
@@ -175,7 +179,7 @@ public class LoanService {
                             try {
                                 toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
                             } catch (Exception e) {
-                                log.warn("⚠️ No se pudo obtener herramienta {}: {}", loan.getToolUnitId(), e.getMessage());
+                                //log.warn(" No se pudo obtener herramienta {}: {}", loan.getToolUnitId(), e.getMessage());
                             }
 
                             // Construir DTO con información disponible
@@ -194,7 +198,7 @@ public class LoanService {
                                     loan.getStatus().toString()
                             );
                         } catch (Exception e) {
-                            log.error("❌ Error mapeando préstamo activo ID {}: {}", loan.getId(), e.getMessage());
+                            log.error(" Error mapeando préstamo activo ID {}: {}", loan.getId(), e.getMessage());
                             return new LoanActiveDTO(
                                     loan.getId(),
                                     "Error al cargar cliente",
@@ -212,29 +216,29 @@ public class LoanService {
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("❌ Error catastrófico obteniendo préstamos activos: {}", e.getMessage(), e);
+            log.error(" Error catastrófico obteniendo préstamos activos: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
 
     public List<LoanActiveDTO> getReturnedWithDebts() {
         try {
-            log.info("🟢 Obteniendo préstamos devueltos con deudas...");
+            log.info(" Obteniendo préstamos devueltos con deudas...");
 
             // Obtener préstamos con deudas usando múltiples métodos
             List<LoanEntity> loans = new ArrayList<>();
 
             try {
                 loans = loanRepository.findReturnedWithDebts();
-                log.info("📊 Consulta JPQL estándar: {} resultados", loans.size());
+                log.info(" Consulta JPQL estándar: {} resultados", loans.size());
             } catch (Exception e1) {
-                log.warn("⚠️ Falló consulta estándar, intentando alternativa: {}", e1.getMessage());
+                log.warn("️ Falló consulta estándar, intentando alternativa: {}", e1.getMessage());
 
                 try {
                     loans = loanRepository.findReturnedWithDebtsCoalesced();
-                    log.info("📊 Consulta COALESCE: {} resultados", loans.size());
+                    log.info(" Consulta COALESCE: {} resultados", loans.size());
                 } catch (Exception e2) {
-                    log.warn("⚠️ Falló COALESCE, usando método manual: {}", e2.getMessage());
+                    log.warn(" Falló COALESCE, usando método manual: {}", e2.getMessage());
 
                     // Método manual como último recurso
                     loans = loanRepository.findByReturnDateIsNotNull().stream()
@@ -244,12 +248,12 @@ public class LoanService {
                                 return fine > 0 || damage > 0;
                             })
                             .collect(Collectors.toList());
-                    log.info("📊 Método manual: {} resultados", loans.size());
+                    log.info(" Método manual: {} resultados", loans.size());
                 }
             }
 
             if (loans.isEmpty()) {
-                log.info("✅ No hay préstamos devueltos con deudas");
+                log.info(" No hay préstamos devueltos con deudas");
                 return new ArrayList<>();
             }
 
@@ -260,14 +264,14 @@ public class LoanService {
                             try {
                                 customer = customerClient.getCustomer(loan.getCustomerId());
                             } catch (Exception e) {
-                                log.warn("⚠️ No se pudo obtener cliente {}: {}", loan.getCustomerId(), e.getMessage());
+                                log.warn(" No se pudo obtener cliente {}: {}", loan.getCustomerId(), e.getMessage());
                             }
 
                             ToolUnitModel toolUnit = null;
                             try {
                                 toolUnit = toolClient.getToolUnit(loan.getToolUnitId());
                             } catch (Exception e) {
-                                log.warn("⚠️ No se pudo obtener herramienta {}: {}", loan.getToolUnitId(), e.getMessage());
+                                log.warn(" No se pudo obtener herramienta {}: {}", loan.getToolUnitId(), e.getMessage());
                             }
 
                             String customerName = customer != null ? customer.getName() : "Cliente #" + loan.getCustomerId();
@@ -285,7 +289,7 @@ public class LoanService {
                                     "RETURNED_WITH_DEBTS"
                             );
                         } catch (Exception e) {
-                            log.error("❌ Error mapeando préstamo con deudas ID {}: {}", loan.getId(), e.getMessage());
+                            log.error(" Error mapeando préstamo con deudas ID {}: {}", loan.getId(), e.getMessage());
                             return null;
                         }
                     })
@@ -293,7 +297,7 @@ public class LoanService {
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("❌ Error catastrófico obteniendo préstamos con deudas: {}", e.getMessage(), e);
+            log.error(" Error catastrófico obteniendo préstamos con deudas: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -392,18 +396,44 @@ public class LoanService {
         }
     }
 
-    private void registerKardexMovement(String movementType, LoanEntity loan, String details) {
+
+    private void registerKardexMovement(String movementType,
+                                        LoanEntity loan,
+                                        String details,
+                                        String userName,
+                                        String customerName) {
         try {
-            KardexRequest request = new KardexRequest(
-                    movementType,
-                    loan.getToolUnitId(),
-                    loan.getCustomerId(),
-                    details
-            );
+            KardexRequest request = new KardexRequest();
+            request.setMovementType(MovementType.valueOf(movementType)); // LOAN, RETURN, REPAIR, RETIRE
+            request.setToolUnitId(loan.getToolUnitId());
+            request.setToolGroupId(loan.getToolGroupId());
+            request.setCustomerId(loan.getCustomerId());
+            request.setDetails(details);
+            request.setUserId(userName != null ? userName : "Sistema");
+
             kardexClient.registerMovement(request);
         } catch (Exception e) {
-            log.warn("Error registrando en Kardex: {}", e.getMessage());
+            log.warn("Error registrando movimiento {} en Kardex: {}", movementType, e.getMessage());
         }
+    }
+
+    public List<LoanActiveDTO> getAllClosedLoans() {
+        List<LoanEntity> closedLoans = loanRepository.findByReturnDateIsNotNull();
+        return closedLoans.stream().map(loan -> {
+            CustomerModel customer = getCustomerInfo(loan.getCustomerId());
+            ToolUnitModel tool = getToolUnitInfo(loan.getToolUnitId());
+            return new LoanActiveDTO(
+                    loan.getId(),
+                    customer != null ? customer.getName() : "Desconocido",
+                    tool != null ? tool.getToolGroupName() : "Desconocido",
+                    loan.getLoanDate(),
+                    loan.getDueDate(),
+                    loan.getReturnDate(),
+                    loan.getFineAmount() != null ? loan.getFineAmount() : 0.0,
+                    loan.getDamageCharge() != null ? loan.getDamageCharge() : 0.0,
+                    "RETURNED"
+            );
+        }).collect(Collectors.toList());
     }
 
     private LoanResponseDTO mapToResponseDTO(LoanEntity loan, String customerName, String toolName) {

@@ -1,6 +1,7 @@
+// KardexView.jsx - ORDENAR EN FRONTEND
 import { useEffect, useState } from "react";
 import kardexService from "../services/kardex.service";
-import toolGroupService from "../services/toolGroup.service"; // para combo
+import toolGroupService from "../services/toolGroup.service";
 import {
   Paper,
   Table,
@@ -14,6 +15,8 @@ import {
   TextField,
   MenuItem,
   Button,
+  Box,
+  Chip,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -23,126 +26,311 @@ import dayjs from "dayjs";
 const KardexView = () => {
   /* ---------- ESTADOS ---------- */
   const [rows, setRows] = useState([]);
-  const [tools, setTools] = useState([]); // combo
+  const [tools, setTools] = useState([]);
   const [selectedTool, setSelectedTool] = useState("");
   const [from, setFrom] = useState(dayjs().subtract(1, 'month'));
   const [to, setTo] = useState(dayjs());
+  const [loading, setLoading] = useState(true);
 
   /* ---------- CARGAS INICIALES ---------- */
   useEffect(() => {
-    kardexService.getAllMovements().then((res) => {
-      console.log("Kardex movements loaded:", res.data);
-      setRows(res.data);
-    }).catch(error => {
-      console.error("Error loading kardex movements:", error);
-    });
-
-    toolGroupService.getAll().then((res) => {
-      setTools(res.data);
-    }).catch(error => {
-      console.error("Error loading tools:", error);
-    });
+    loadAllMovements();
+    loadTools();
   }, []);
+
+  const loadAllMovements = async () => {
+    setLoading(true);
+    try {
+      const res = await kardexService.getAllMovements();
+      // ORDENAR por fecha descendente (más reciente primero)
+      const sortedData = res.data.sort((a, b) => 
+        new Date(b.movementDate) - new Date(a.movementDate)
+      );
+      setRows(sortedData);
+    } catch (error) {
+      console.error("Error loading kardex movements:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTools = async () => {
+    try {
+      const res = await toolGroupService.getAll();
+      setTools(res.data);
+    } catch (error) {
+      console.error("Error loading tools:", error);
+    }
+  };
 
   /* ---------- FILTROS ---------- */
   const filterByTool = async () => {
     if (!selectedTool) return;
-    const res = await kardexService.getMovementsByToolGroup(selectedTool);
-    setRows(res.data);
+    setLoading(true);
+    try {
+      const res = await kardexService.getMovementsByToolGroup(selectedTool);
+      const sortedData = res.data.sort((a, b) => 
+        new Date(b.movementDate) - new Date(a.movementDate)
+      );
+      setRows(sortedData);
+    } catch (error) {
+      console.error("Error filtering by tool:", error);
+    } finally {
+      setLoading(false);
+    }
   };
-
 
   const filterByRange = async () => {
-    const res = await kardexService.getMovementsByDateRange(
-      from.format('YYYY-MM-DD'),
-      to.format('YYYY-MM-DD')
-    );
-    setRows(res.data);
+    setLoading(true);
+    try {
+      const res = await kardexService.getMovementsByDateRange(
+        from.format('YYYY-MM-DD'),
+        to.format('YYYY-MM-DD')
+      );
+      const sortedData = res.data.sort((a, b) => 
+        new Date(b.movementDate) - new Date(a.movementDate)
+      );
+      setRows(sortedData);
+    } catch (error) {
+      console.error("Error filtering by date:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-
   const clearFilters = () => {
-    kardexService.getAllMovements().then((res) => setRows(res.data));
+    loadAllMovements();
     setSelectedTool("");
+  };
+
+  // Función para formatear fecha con hora
+  const formatDateTime = (dateString) => {
+    return dayjs(dateString).format('DD/MM/YYYY HH:mm:ss');
+  };
+
+  // Función para colores según tipo de movimiento
+  const getMovementTypeColor = (type) => {
+    const colors = {
+      'REGISTRY': 'success',
+      'LOAN': 'info',
+      'RETURN': 'primary',
+      'REPAIR': 'warning',
+      'RETIRE': 'error',
+      'RE_ENTRY': 'success'
+    };
+    return colors[type] || 'default';
   };
 
   /* ---------- RENDER ---------- */
   return (
     <Paper sx={{ p: 4, background: "#ffffff" }}>
       <Typography variant="h4" sx={{ mb: 3, color: "#6c63ff" }}>
-        Kardex Movements
+        📋 Kardex de Movimientos
       </Typography>
 
       {/* ---------- FILTROS ---------- */}
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
+      <Box sx={{ 
+        p: 2, 
+        mb: 3, 
+        border: '1px solid #e0e0e0', 
+        borderRadius: 2,
+        backgroundColor: '#fafafa'
+      }}>
+        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+          Filtros
+        </Typography>
+        
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-end">
+          {/* Filtro por herramienta */}
+          <TextField
+            select
+            label="Filtrar por Herramienta"
+            value={selectedTool}
+            onChange={(e) => setSelectedTool(e.target.value)}
+            sx={{ minWidth: 250 }}
+            size="small"
+          >
+            <MenuItem value="">Todas las herramientas</MenuItem>
+            {tools.map((t) => (
+              <MenuItem key={t.id} value={t.id}>
+                {t.name} ({t.category})
+              </MenuItem>
+            ))}
+          </TextField>
 
-        {/* Filtro por herramienta (RF5.2) */}
-        <TextField
-          select
-          label="Filtro por Herramienta"
-          value={selectedTool}
-          onChange={(e) => setSelectedTool(e.target.value)}
-          sx={{ minWidth: 220 }}
-        >
-          <MenuItem value="">-- All --</MenuItem>
-          {tools.map((t) => (
-            <MenuItem key={t.id} value={t.id}>
-              {t.name} ({t.category})
-            </MenuItem>
-          ))}
-        </TextField>
+          {/* Filtro por fechas */}
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <Stack direction="row" spacing={1}>
+              <DatePicker
+                label="Desde"
+                value={from}
+                onChange={(newVal) => setFrom(newVal ?? dayjs())}
+                slotProps={{ 
+                  textField: { 
+                    size: 'small',
+                    sx: { minWidth: 150 }
+                  } 
+                }}
+              />
+              <DatePicker
+                label="Hasta"
+                value={to}
+                onChange={(newVal) => setTo(newVal ?? dayjs())}
+                slotProps={{ 
+                  textField: { 
+                    size: 'small',
+                    sx: { minWidth: 150 }
+                  } 
+                }}
+              />
+            </Stack>
+          </LocalizationProvider>
 
-        {/* Filtro por rango (RF5.3) */}
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          {/* Botones de acción */}
           <Stack direction="row" spacing={1}>
-            <DatePicker
-              label="Desde"
-              value={from}
-              onChange={(newVal) => setFrom(newVal ?? dayjs())}
-              slotProps={{ textField: { size: 'small' } }}
-            />
-            <DatePicker
-              label="Hasta"
-              value={to}
-              onChange={(newVal) => setTo(newVal ?? dayjs())}
-              slotProps={{ textField: { size: 'small' } }}
-            />
+            <Button 
+              variant="contained" 
+              onClick={filterByTool}
+              disabled={!selectedTool}
+              size="small"
+            >
+              Filtrar por Herramienta
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={filterByRange}
+              size="small"
+              color="secondary"
+            >
+              Filtrar por Fechas
+            </Button>
+            <Button 
+              variant="outlined" 
+              onClick={clearFilters}
+              size="small"
+            >
+              Limpiar Filtros
+            </Button>
           </Stack>
-        </LocalizationProvider>
-
-        {/* Botones */}
-        <Button variant="outlined" onClick={filterByTool}>Filtro x Herramienta</Button>
-        <Button variant="outlined" onClick={filterByRange}>Filtro x Fechas</Button>
-        <Button variant="outlined" onClick={clearFilters}>Clear</Button>
-      </Stack>
+        </Stack>
+      </Box>
 
       {/* ---------- TABLA ---------- */}
-      <TableContainer>
-        <Table>
-          <TableHead sx={{ background: "#f5f0ff" }}>
-            <TableRow>
-              <TableCell sx={{ color: "#2e2e4e" }}>ID</TableCell>
-              <TableCell sx={{ color: "#2e2e4e" }}>Fecha</TableCell>
-              <TableCell sx={{ color: "#2e2e4e" }}>Tipo</TableCell>
-              <TableCell sx={{ color: "#2e2e4e" }}>Herramienta</TableCell>
-              <TableCell sx={{ color: "#2e2e4e" }}>Detalles</TableCell>
+      <TableContainer sx={{ maxHeight: '70vh' }}>
+        <Table stickyHeader>
+          <TableHead>
+            <TableRow sx={{ 
+              '& th': { 
+                backgroundColor: '#6c63ff', 
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '0.95rem'
+              }
+            }}>
+              <TableCell>#</TableCell>
+              <TableCell>Fecha y Hora</TableCell>
+              <TableCell>Tipo</TableCell>
+              <TableCell>Herramienta</TableCell>
+              <TableCell>Usuario</TableCell>
+              <TableCell>Detalles</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id} hover sx={{ "&:hover": { background: "#f5f0ff" } }}>
-                <TableCell>{r.id}</TableCell>
-                <TableCell>{r.movementDate}</TableCell>
-                <TableCell>{r.movementType}</TableCell>
-                <TableCell>{r.toolUnit?.toolGroup?.name ?? ''}</TableCell>
-                <TableCell sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {r.details}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                  Cargando movimientos...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                  No hay movimientos registrados
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((r) => (
+                <TableRow 
+                  key={r.id} 
+                  hover 
+                  sx={{ 
+                    '&:hover': { backgroundColor: '#f5f0ff' },
+                    '&:nth-of-type(even)': { backgroundColor: '#f9f9f9' }
+                  }}
+                >
+                  <TableCell sx={{ fontWeight: 'bold' }}>
+                    {r.id}
+                  </TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace' }}>
+                    {formatDateTime(r.movementDate)}
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={r.movementType} 
+                      size="small"
+                      color={getMovementTypeColor(r.movementType)}
+                      sx={{ 
+                        fontWeight: 'bold',
+                        minWidth: 90,
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                      {r.toolGroupName || 'Desconocido'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      ID: {r.toolUnitId}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ 
+                      backgroundColor: '#e3f2fd', 
+                      px: 1, 
+                      py: 0.5, 
+                      borderRadius: 1,
+                      display: 'inline-block'
+                    }}>
+                      {r.userName || 'Sistema'}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ maxWidth: 400 }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={r.details}
+                    >
+                      {r.details}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Contador de registros */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        mt: 2, 
+        pt: 2, 
+        borderTop: '1px solid #e0e0e0' 
+      }}>
+        <Typography variant="body2" color="text.secondary">
+          Mostrando {rows.length} movimientos
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Última actualización: {dayjs().format('DD/MM/YYYY HH:mm')}
+        </Typography>
+      </Box>
     </Paper>
   );
 };

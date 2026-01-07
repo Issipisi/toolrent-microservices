@@ -41,11 +41,17 @@ public class ToolUnitController {
 
     // CRÍTICO para Loan Service - para cambiar estado
     @PutMapping("/{id}/status")
-    public ResponseEntity<Void> updateStatus(
-            @PathVariable Long id,
-            @RequestParam String status) {
-        toolUnitService.updateStatus(id, status);
-        return ResponseEntity.ok().build();
+    public void updateStatus(@PathVariable Long id,
+                             @RequestParam String status,
+                             @RequestParam(required = false) String userName) {
+        toolUnitService.updateStatus(id, status, userName);
+    }
+
+    @PutMapping("/{id}/repair-resolution")
+    public ToolUnitEntity repairResolution(@PathVariable Long id,
+                                           @RequestParam boolean retire,
+                                           @RequestParam(required = false) String userName) {
+        return toolUnitService.repairResolution(id, retire, userName);
     }
 
     @GetMapping
@@ -54,26 +60,27 @@ public class ToolUnitController {
         return ResponseEntity.ok(units);
     }
 
-
-    @PutMapping("/{id}/resolve-repair")
-    public ResponseEntity<Void> resolveRepair(
-            @PathVariable Long id,
-            @RequestParam boolean retire) {
-        toolUnitService.repairResolution(id, retire);
-        return ResponseEntity.ok().build();
-    }
-
-    @PutMapping("/{id}/retire-from-repair")
-    public ResponseEntity<Void> retireFromRepair(@PathVariable Long id) {
-        toolUnitService.repairResolution(id, true); // true = retire
-        return ResponseEntity.ok().build();
-    }
-
     // Opcional - para reportes
     @GetMapping("/groups/{groupId}/stock")
     public ResponseEntity<Long> getAvailableStock(@PathVariable Long groupId) {
         long stock = toolUnitService.getAvailableStock(groupId);
         return ResponseEntity.ok(stock);
+    }
+
+
+    @PutMapping("/{id}/resolve-repair")
+    public ResponseEntity<Void> resolveRepair(
+            @PathVariable Long id,
+            @RequestParam boolean retire,
+            @RequestParam(required = false) String userName) {
+        toolUnitService.repairResolution(id, retire, userName);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{id}/retire-from-repair")
+    public ResponseEntity<Void> retireFromRepair(@PathVariable Long id, @RequestParam(required = false) String userName) {
+        toolUnitService.repairResolution(id, true, userName); // true = retire
+        return ResponseEntity.ok().build();
     }
 
 }

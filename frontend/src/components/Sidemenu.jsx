@@ -1,105 +1,240 @@
-import Box from "@mui/material/Box";
-import Drawer from "@mui/material/Drawer";
-import List from "@mui/material/List";
-import Divider from "@mui/material/Divider";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Box, Drawer, List, Divider, ListItemButton,
+  ListItemIcon, ListItemText, Typography, Avatar,
+  Chip
+} from "@mui/material";
 import HandymanIcon from '@mui/icons-material/Handyman';
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import PaidIcon from "@mui/icons-material/Paid";
 import BuildIcon from '@mui/icons-material/Build';
 import AnalyticsIcon from "@mui/icons-material/Analytics";
-import HailIcon from "@mui/icons-material/Hail";
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import HomeIcon from "@mui/icons-material/Home";
-import { useNavigate } from "react-router-dom";
+import SettingsIcon from '@mui/icons-material/Settings';
+import InventoryIcon from '@mui/icons-material/Inventory';
 import { useEffect } from "react";
 
-const employeeAllowed = ["/home", "/loans", "/reports"]; // rutas visibles para EMPLOYEE
+const employeeAllowed = ["/home", "/loans", "/reports"];
 
 export default function Sidemenu({ open, toggleDrawer, userRole }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const root = document.getElementById("root");
     if (root) root.inert = open;
   }, [open]);
 
-  // decide si un item se muestra
   const canShow = (path) => {
     if (userRole === "ADMIN") return true;
     return employeeAllowed.includes(path);
   };
 
+  const menuItems = [
+    {
+      text: "Inicio",
+      icon: <HomeIcon />,
+      path: "/home",
+      adminOnly: false,
+      employeeAllowed: true
+    },
+    {
+      text: "Clientes",
+      icon: <PeopleAltIcon />,
+      path: "/customers",
+      adminOnly: false,
+      employeeAllowed: false
+    },
+    {
+      text: "Grupos de Herramientas",
+      icon: <HandymanIcon />,
+      path: "/tools",
+      adminOnly: false,
+      employeeAllowed: false
+    },
+    {
+      text: "Unidades de Herramientas",
+      icon: <BuildIcon />,
+      path: "/tools/units",
+      adminOnly: false,
+      employeeAllowed: false
+    },
+    {
+      text: "Préstamos",
+      icon: <CreditScoreIcon />,
+      path: "/loans",
+      adminOnly: false,
+      employeeAllowed: true
+    },
+    {
+      text: "Configurar Tarifas",
+      icon: <PaidIcon />,
+      path: "/tariff",
+      adminOnly: true,
+      employeeAllowed: false
+    },
+    {
+      text: "Reportes",
+      icon: <ReceiptLongIcon />,
+      path: "/reports",
+      adminOnly: false,
+      employeeAllowed: true
+    },
+    {
+      text: "Kárdex",
+      icon: <AnalyticsIcon />,
+      path: "/kardex",
+      adminOnly: false,
+      employeeAllowed: false
+    }
+  ];
+
+  const getItemColor = (path) => {
+    return location.pathname === path ? "#6c63ff" : "inherit";
+  };
+
+  const getItemBackground = (path) => {
+    return location.pathname === path ? "#f0f4ff" : "transparent";
+  };
+
   const listOptions = () => (
-    <Box role="presentation" onClick={toggleDrawer(false)}>
-      <List>
-        {canShow("/home") && (
-          <>
-            <ListItemButton onClick={() => navigate("/home")}>
-              <ListItemIcon><HomeIcon /></ListItemIcon>
-              <ListItemText primary="Home" />
-            </ListItemButton>
-            <Divider />
-          </>
-        )}
+    <Box 
+      role="presentation" 
+      sx={{ 
+        width: 280,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%)'
+      }}
+    >
+      {/* Encabezado del menú */}
+      <Box sx={{ 
+        p: 3, 
+        background: "linear-gradient(135deg, #6c63ff 0%, #9d4edd 100%)",
+        color: 'white'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Avatar sx={{ 
+            bgcolor: 'rgba(255,255,255,0.2)',
+            width: 48,
+            height: 48
+          }}>
+            <HandymanIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              ToolRent
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+              Sistema de Gestión
+            </Typography>
+          </Box>
+        </Box>
+        
+        <Chip
+          label={`Rol: ${userRole || 'No asignado'}`}
+          size="small"
+          sx={{ 
+            background: 'rgba(255,255,255,0.2)',
+            color: 'white',
+            border: '1px solid rgba(255,255,255,0.3)'
+          }}
+        />
+      </Box>
 
-        {canShow("/customers") && (
-          <ListItemButton onClick={() => navigate("/customers")}>
-            <ListItemIcon><PeopleAltIcon /></ListItemIcon>
-            <ListItemText primary="Customer" />
-          </ListItemButton>
-        )}
+      <Divider />
 
-        {canShow("/tools") && (
-          <ListItemButton onClick={() => navigate("/tools")}>
-            <ListItemIcon><HandymanIcon /></ListItemIcon>
-            <ListItemText primary="Tool Group" />
-          </ListItemButton>
-        )}
+      {/* Contenedor del contenido principal - OCUPA TODO EL ESPACIO DISPONIBLE */}
+      <Box sx={{ 
+        flex: 1,
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* Items del menú */}
+        <List sx={{ p: 2, flex: 1 }}>
+          {menuItems.map((item) => {
+            const showItem = item.adminOnly ? userRole === "ADMIN" : canShow(item.path);
+            
+            if (!showItem) return null;
 
-        {canShow("/tools/units") && (
-          <ListItemButton onClick={() => navigate("/tools/units")}>
-            <ListItemIcon><BuildIcon /></ListItemIcon>
-            <ListItemText primary="Tool Unit" />
-          </ListItemButton>
-        )}
+            return (
+              <ListItemButton
+                key={item.text}
+                onClick={() => {
+                  navigate(item.path);
+                  toggleDrawer(false)();
+                }}
+                sx={{
+                  mb: 1,
+                  borderRadius: 2,
+                  backgroundColor: getItemBackground(item.path),
+                  color: getItemColor(item.path),
+                  '&:hover': {
+                    backgroundColor: '#f0f4ff',
+                    '& .MuiListItemIcon-root': {
+                      color: "#6c63ff"
+                    }
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ color: getItemColor(item.path), minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.text} 
+                  primaryTypographyProps={{ 
+                    fontWeight: location.pathname === item.path ? 'bold' : 'normal' 
+                  }}
+                />
+                {location.pathname === item.path && (
+                  <Box sx={{ 
+                    width: 6, 
+                    height: 6, 
+                    borderRadius: '50%', 
+                    backgroundColor: "#6c63ff",
+                    ml: 1
+                  }} />
+                )}
+              </ListItemButton>
+            );
+          })}
+        </List>
+      </Box>
 
-        {canShow("/loans") && (
-          <ListItemButton onClick={() => navigate("/loans")}>
-            <ListItemIcon><CreditScoreIcon /></ListItemIcon>
-            <ListItemText primary="Loan" />
-          </ListItemButton>
-        )}
-
-        {canShow("/tariff") && (
-          <ListItemButton onClick={() => navigate("/tariff")}>
-            <ListItemIcon><PaidIcon /></ListItemIcon>
-            <ListItemText primary="Tariff" />
-          </ListItemButton>
-        )}
-
-        {canShow("/reports") && (
-          <ListItemButton onClick={() => navigate("/reports")}>
-            <ListItemIcon><ReceiptLongIcon /></ListItemIcon>
-            <ListItemText primary="Reports" />
-          </ListItemButton>
-        )}
-
-        {canShow("/kardex") && (
-          <ListItemButton onClick={() => navigate("/kardex")}>
-            <ListItemIcon><AnalyticsIcon /></ListItemIcon>
-            <ListItemText primary="Kárdex" />
-          </ListItemButton>
-        )}
-      </List>
+      {/* Pie del menú - AHORA ESTÁ FUERA DEL CONTENIDO SCROLLABLE */}
+      <Box sx={{ 
+        p: 2,
+        borderTop: '1px solid #e0e0e0',
+        backgroundColor: '#fafafa',
+        flexShrink: 0 // Esto evita que se encoja
+      }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+          v1.0.0
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+          © {new Date().getFullYear()} ToolRent
+        </Typography>
+      </Box>
     </Box>
   );
 
   return (
-    <Drawer anchor="left" open={open} onClose={toggleDrawer(false)}>
+    <Drawer 
+      anchor="left" 
+      open={open} 
+      onClose={toggleDrawer(false)}
+      PaperProps={{
+        sx: {
+          borderRight: '1px solid #e0e0e0',
+          boxShadow: '4px 0 20px rgba(0,0,0,0.05)',
+          height: '100vh' // Asegura que ocupe toda la altura
+        }
+      }}
+    >
       {listOptions()}
     </Drawer>
   );

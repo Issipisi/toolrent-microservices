@@ -21,9 +21,11 @@ public class ToolGroupController {
 
     @PostMapping
     public ResponseEntity<ToolGroupResponseDTO> createToolGroup(
-            @Valid @RequestBody ToolGroupRequestDTO request) {
-        ToolGroupResponseDTO created = toolGroupService.createToolGroup(request);
-        return ResponseEntity.ok(created);
+            @Valid@RequestBody ToolGroupRequestDTO request,
+            @RequestParam(required = false) String userName){ // ← recibir
+
+        ToolGroupResponseDTO response = toolGroupService.createToolGroup(request, userName); // ← pasar
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping
@@ -63,7 +65,7 @@ public class ToolGroupController {
 
     // ========== NUEVOS ENDPOINTS PARA REPARACIONES ==========
 
-    @PutMapping("/units/{unitId}/send-to-repair")
+    /*@PutMapping("/units/{unitId}/send-to-repair")
     public ResponseEntity<String> sendToRepair(
             @PathVariable Long unitId,
             @RequestParam(required = false) String reason,
@@ -84,7 +86,7 @@ public class ToolGroupController {
         return ResponseEntity.ok(successful ?
                 "Reparación completada exitosamente" :
                 "Reparación fallida - herramienta requiere evaluación");
-    }
+    }*/
 
     @PutMapping("/units/{unitId}/retire")
     public ResponseEntity<String> retireTool(

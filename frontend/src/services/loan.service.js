@@ -1,12 +1,14 @@
 import api from "../http-common";
 
-const register = (loanData) => {
-  return api.post('/api/loans', loanData);
+const register = (loanData, userName) => {
+  return api.post('/api/loans', loanData, {
+    params: { userName } // ← ahora sí llega al backend
+  });
 };
 
-const returnLoan = (loanId, damageCharge = 0.0, irreparable = false) => {
+const returnLoan = (loanId, damageCharge = 0.0, irreparable = false, userName = "Sistema") => {
   return api.put(`/api/loans/${loanId}/return`, null, {
-    params: { damageCharge, irreparable }
+    params: { damageCharge, irreparable, userName } 
   });
 };
 

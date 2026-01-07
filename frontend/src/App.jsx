@@ -1,6 +1,7 @@
-// src/App.jsx - VERSIÓN COMPLETA CON ROLES
+// src/App.jsx - VERSIÓN COMPLETA CON ROLES Y COMPONENTE ACCESSDENIED
 import './App.css'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom'
+import { Box, CircularProgress, Typography } from '@mui/material'; // Añade estas importaciones
 import Navbar from "./components/Navbar"
 import Home from './components/Home';
 import ToolUnitView from './components/ToolUnitView';
@@ -11,30 +12,45 @@ import LoanView from "./components/LoanView";
 import TariffView from "./components/TariffView";
 import KardexView from "./components/KardexView";
 import ReportView from "./components/ReportView";
-import { useKeycloak } from "@react-keycloak/web";  // ✅ Añadir este import
+import AccessDenied from "./components/AccessDenied"; // NUEVO COMPONENTE
+import { useKeycloak } from "@react-keycloak/web";  
 
 function App() {
-  const { keycloak, initialized } = useKeycloak();  // ✅ Obtener Keycloak
+  const { keycloak, initialized } = useKeycloak(); 
 
   // Mostrar loading mientras Keycloak se inicializa
   if (!initialized) {
-    return <div style={{ padding: '20px' }}>Inicializando autenticación...</div>;
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   // Si no está autenticado, Keycloak se encargará (onLoad: 'login-required')
-  // pero podemos agregar un check adicional
   if (!keycloak.authenticated) {
-    return <div style={{ padding: '20px' }}>Redirigiendo a login...</div>;
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column',
+        gap: 2
+      }}>
+        <CircularProgress />
+        <Typography>Redirigiendo al login...</Typography>
+      </Box>
+    );
   }
 
-  // ---- OBTENER ROL DEL USUARIO ----
-  // Opción 1: Roles desde realm_access (recomendado)
+  // OBTENER ROL DEL USUARIO
   const roles = keycloak.tokenParsed?.realm_access?.roles || [];
-  
-  // Opción 2: Roles desde resource_access (si los configuraste en el cliente)
-  // const clientRoles = keycloak.tokenParsed?.resource_access?.['toolrent-frontend']?.roles || [];
-  // const roles = [...realmRoles, ...clientRoles];
-  
   const userRole = roles.includes("ADMIN") ? "ADMIN" : 
                    roles.includes("EMPLOYEE") ? "EMPLOYEE" : 
                    null;
@@ -43,17 +59,10 @@ function App() {
   console.log('Roles disponibles:', roles);
   console.log('Rol asignado:', userRole);
 
-  // Componente para proteger rutas
+  // Componente para proteger rutas usando el nuevo componente AccessDenied
   const PrivateRoute = ({ element, rolesAllowed }) => {
     if (!userRole || !rolesAllowed.includes(userRole)) {
-      return (
-        <div style={{ padding: '20px', textAlign: 'center' }}>
-          <h3>⚠️ Acceso Denegado</h3>
-          <p>No tienes permisos para acceder a esta página.</p>
-          <p>Tu rol: {userRole || 'No asignado'}</p>
-          <p>Roles requeridos: {rolesAllowed.join(', ')}</p>
-        </div>
-      );
+      return <AccessDenied userRole={userRole} requiredRoles={rolesAllowed} />;
     }
     return element;
   };

@@ -1,7 +1,6 @@
 package com.example.kardex_service.service;
 
 import com.example.kardex_service.client.*;
-import com.example.kardex_service.config.SystemConstants;
 import com.example.kardex_service.dto.*;
 import com.example.kardex_service.entity.KardexMovementEntity;
 import com.example.kardex_service.entity.MovementType;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,7 +23,6 @@ public class KardexService {
     private final KardexRepository kardexRepository;
     private final ToolClient toolClient;
     private final CustomerClient customerClient;
-    private final UserClient userClient;
 
     // ========== MÉTODOS PARA REGISTRAR MOVIMIENTOS ==========
 
@@ -38,7 +35,7 @@ public class KardexService {
                 request.getMovementType(), request.getToolUnitId(), request.getUserId());
 
         // Determinar usuario (si no viene, usar SYSTEM)
-        Long userId = request.getUserId() != null ? request.getUserId() : SystemConstants.SYSTEM_USER_ID;
+        String userId = request.getUserId() != null ? request.getUserId() : "Sistema";
 
         // CustomerId puede ser null
         Long customerId = request.getCustomerId(); // Puede ser null
@@ -90,18 +87,14 @@ public class KardexService {
     }
 
     // Método auxiliar para obtener nombre de usuario
-    private String getUserName(Long userId) {
-        if (userId.equals(SystemConstants.SYSTEM_USER_ID)) {
+    private String getUserName(String userId) {
+        if ("Sistema".equals(userId)) {
             return "SISTEMA";
         }
-        try {
-            UserModel user = userClient.getUserById(String.valueOf(userId));
-            return user.getFullName() != null ? user.getFullName() : user.getUsername();
-        } catch (Exception e) {
-            log.warn("No se pudo obtener información del usuario {}", userId, e);
-            return "Usuario " + userId;
-        }
+        // No consultes users-service si es UUID
+        return userId; // o usa keycloak.tokenParsed.name si lo tienes
     }
+
 
     @Transactional
     public KardexResponseDTO registerToolCreation(Long toolUnitId, Long toolGroupId, String toolName) {
@@ -114,14 +107,21 @@ public class KardexService {
     }
 
     @Transactional
-    public KardexResponseDTO registerLoan(Long toolUnitId, Long toolGroupId, Long customerId, String customerName) {
-        KardexRequest request = new KardexRequest();
-        request.setMovementType(MovementType.LOAN);
-        request.setToolUnitId(toolUnitId);
-        request.setToolGroupId(toolGroupId);
-        request.setCustomerId(customerId);
-        request.setDetails("Préstamo a cliente: " + customerName);
-        return registerMovement(request);
+    public KardexResponseDTO registerLoan(Long toolUnitId, Long toolGroupId, Long customerId,
+                                          String customerName, String userName) {
+        ToolUnitModel toolUnit = toolClient.getToolUnit(toolUnitId);
+        String toolGroupName = toolUnit != null ? toolUnit.getToolGroupName() : "Desconocido";
+
+        KardexMovementEntity m = new KardexMovementEntity();
+        m.setToolUnitId(toolUnitId);
+        m.setToolGroupId(toolGroupId);
+        m.setCustomerId(customerId);
+        m.setCustomerName(customerName);
+        m.setUserName(userName != null ? userName : "Sistema");
+        m.setToolGroupName(toolGroupName);
+        m.setMovementType(MovementType.LOAN);
+        m.setDetails("Préstamo a cliente: " + customerName);
+        return mapToDTO(kardexRepository.save(m));
     }
 
     @Transactional
@@ -172,21 +172,6 @@ public class KardexService {
         request.setDetails(details);
         return registerMovement(request);
     }
-
-    @Transactional
-    public KardexResponseDTO registerRetirement(Long toolUnitId, Long toolGroupId, String reason, Long customerId) {
-        String details = "Baja de herramienta: " + reason;
-        if (customerId != null) details += " - Cliente: " + customerId;
-
-        KardexRequest request = new KardexRequest();
-        request.setMovementType(MovementType.RETIRE);
-        request.setToolUnitId(toolUnitId);
-        request.setToolGroupId(toolGroupId);
-        request.setCustomerId(customerId);
-        request.setDetails(details);
-        return registerMovement(request);
-    }
-
     // ========== CONSULTAS ==========
 
     public List<KardexResponseDTO> getAllMovements() {
@@ -243,9 +228,53 @@ public class KardexService {
         return movement != null ? mapToDTO(movement) : null;
     }
 
-    // ========== MÉTODOS PRIVADOS ==========
+    @Transactional
+    public KardexResponseDTO registerToolsBatchCreation(Long toolGroupId,
+                                                        String toolGroupName,
+                                                        Integer quantity,
+                                                        String userName) {
 
-    private ToolUnitModel getToolUnitInfo(Long toolUnitId) {
+        KardexMovementEntity movement = new KardexMovementEntity();
+        movement.setToolGroupId(toolGroupId);
+        movement.setToolGroupName(toolGroupName);
+        movement.setUserId(userName != null ? userName : "Sistema");
+        movement.setUserName(userName != null ? userName : "Sistema");
+        movement.setMovementType(MovementType.REGISTRY);
+        movement.setDetails("Creación de Herramienta " + toolGroupName + " con " + quantity + " unidades ");
+
+        KardexMovementEntity saved = kardexRepository.save(movement);
+        return mapToDTO(saved);
+    }
+
+    @Transactional
+    public KardexResponseDTO registerRetirement(Long toolUnitId,
+                                                Long toolGroupId,
+                                                String reason,
+                                                Long customerId,
+                                                String userId) {
+        KardexRequest request = new KardexRequest();
+        request.setMovementType(MovementType.RETIRE);
+        request.setToolUnitId(toolUnitId);
+        request.setToolGroupId(toolGroupId);
+        request.setCustomerId(customerId);
+        request.setDetails("Baja definitiva: " + reason);
+        request.setUserId(userId); // ← importante
+        return registerMovement(request);
+    }
+
+    @Transactional
+    public KardexResponseDTO registerRetirementUnit(Long toolUnitId, Long toolGroupId, String toolGroupName, String userName) {
+        KardexMovementEntity m = new KardexMovementEntity();
+        m.setToolUnitId(toolUnitId);
+        m.setToolGroupId(toolGroupId);
+        m.setToolGroupName(toolGroupName);
+        m.setUserName(userName);
+        m.setMovementType(MovementType.RETIRE);
+        m.setDetails(" Herramienta Retirada - Daño irreparable ");
+        return mapToDTO(kardexRepository.save(m));
+    }
+
+    /*private ToolUnitModel getToolUnitInfo(Long toolUnitId) {
         try {
             return toolClient.getToolUnit(toolUnitId);
         } catch (Exception e) {
@@ -264,63 +293,30 @@ public class KardexService {
             return createBasicCustomer(customerId);
         }
     }
+   */
 
-    private UserModel getUserInfo(Long userId) {
-        // Usuario SISTEMA
-        if (userId.equals(SystemConstants.SYSTEM_USER_ID)) {
-            return createSystemUser();
-        }
-
-        // Consultar Users Service
-        try {
-            return userClient.getUserById(String.valueOf(userId));
-        } catch (Exception e) {
-            log.warn("No se pudo obtener información del usuario {}", userId, e);
-            return createBasicUser(userId);
-        }
-    }
-
-    // KardexService.java - Agregar validación
-    private void validateMovementRequest(KardexRequest request) {
-        if (request.getToolUnitId() == null) {
-            throw new RuntimeException("toolUnitId es requerido");
-        }
-
-        if (request.getMovementType() == null) {
-            throw new RuntimeException("movementType es requerido");
-        }
-
-        // Validar que si es préstamo o devolución, tenga customerId
-        if ((request.getMovementType() == MovementType.LOAN ||
-                request.getMovementType() == MovementType.RETURN ||
-                request.getMovementType() == MovementType.REPAIR) &&
-                request.getCustomerId() == null) {
-            throw new RuntimeException("customerId es requerido para movimientos de tipo " +
-                    request.getMovementType());
-        }
-    }
-
-    // método específico para RE_ENTRY
     @Transactional
-    public KardexResponseDTO registerReEntry(Long toolUnitId, Long toolGroupId,
-                                             Double repairCost, String notes, Long userId) {
-        log.info("Registrando re-ingreso - Unidad: {}, Grupo: {}", toolUnitId, toolGroupId);
+    public KardexResponseDTO registerSendToRepairUnit(Long toolUnitId, Long toolGroupId, String toolGroupName, String userName) {
+        KardexMovementEntity m = new KardexMovementEntity();
+        m.setToolUnitId(toolUnitId);
+        m.setToolGroupId(toolGroupId);
+        m.setToolGroupName(toolGroupName);
+        m.setUserName(userName);
+        m.setMovementType(MovementType.REPAIR);
+        m.setDetails(" Herramienta en Reparación - Daño leve");
+        return mapToDTO(kardexRepository.save(m));
+    }
 
-        String details = "Re-ingreso desde reparación" +
-                (repairCost != null ? String.format(" (Costo: $%.2f)", repairCost) : "") +
-                (notes != null ? " - " + notes : "");
-
-        KardexMovementEntity movement = new KardexMovementEntity();
-        movement.setToolUnitId(toolUnitId);
-        movement.setToolGroupId(toolGroupId);
-        movement.setMovementType(MovementType.RE_ENTRY);
-        movement.setDetails(details);
-        movement.setUserId(userId != null ? userId : 0L); // SISTEMA por defecto
-
-        KardexMovementEntity saved = kardexRepository.save(movement);
-        log.info("Movimiento RE_ENTRY registrado con ID: {}", saved.getId());
-
-        return mapToDTO(saved);
+    @Transactional
+    public KardexResponseDTO registerReEntry(Long toolUnitId, Long toolGroupId, String toolGroupName, String userName) {
+        KardexMovementEntity m = new KardexMovementEntity();
+        m.setToolUnitId(toolUnitId);
+        m.setToolGroupId(toolGroupId);
+        m.setToolGroupName(toolGroupName);
+        m.setUserName(userName);
+        m.setMovementType(MovementType.RE_ENTRY);
+        m.setDetails(" Re-ingreso desde reparación - Disponible");
+        return mapToDTO(kardexRepository.save(m));
     }
 
     private KardexResponseDTO mapToDTO(KardexMovementEntity entity) {
@@ -339,39 +335,5 @@ public class KardexService {
                 entity.getMovementDate(),
                 entity.getDetails()
         );
-    }
-
-    // Métodos auxiliares para crear objetos básicos
-    private ToolUnitModel createBasicToolUnit(Long toolUnitId) {
-        ToolUnitModel basic = new ToolUnitModel();
-        basic.setId(toolUnitId);
-        basic.setToolGroupId(0L);
-        basic.setToolGroupName("Desconocido");
-        return basic;
-    }
-
-    private CustomerModel createBasicCustomer(Long customerId) {
-        CustomerModel basic = new CustomerModel();
-        basic.setId(customerId);
-        basic.setName("Cliente " + customerId);
-        return basic;
-    }
-
-    private UserModel createSystemUser() {
-        UserModel systemUser = new UserModel();
-        systemUser.setId(SystemConstants.SYSTEM_USER_ID);
-        systemUser.setUsername(SystemConstants.SYSTEM_USER_NAME);
-        systemUser.setFullName(SystemConstants.SYSTEM_USER_FULL_NAME);
-        systemUser.setRole("SYSTEM");
-        return systemUser;
-    }
-
-    private UserModel createBasicUser(Long userId) {
-        UserModel basicUser = new UserModel();
-        basicUser.setId(userId);
-        basicUser.setUsername("Usuario_" + userId);
-        basicUser.setFullName("Usuario " + userId);
-        basicUser.setRole("EMPLOYEE");
-        return basicUser;
     }
 }

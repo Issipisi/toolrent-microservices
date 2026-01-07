@@ -20,19 +20,22 @@ const getAvailableUnit = (groupId) => {
   return api.get(`/api/tools/units/groups/${groupId}/available`);
 };
 
-const updateStatus = (id, status) => {
+const updateStatus = (id, status, userName) => {
   return api.put(`/api/tools/units/${id}/status`, null, {
-    params: { status }
+    params: { status, userName } // ← ahora sí lo envía
   });
 };
 
-const changeStatus = (id, status) => {
-  return updateStatus(id, status);
+const changeStatus = (id, status, userName) => {
+  return updateStatus(id, status, userName);
 };
 
 const getAvailableStock = (groupId) => {
   return api.get(`/api/tools/units/groups/${groupId}/stock`);
 };
+
+const repairResolution = (id, retire, userName) =>
+  api.put(`/api/tools/units/${id}/repair-resolution`, null, { params: { retire, userName } });
 
 export default {
   getAll,
@@ -42,5 +45,6 @@ export default {
   getAvailableUnit,
   updateStatus,
   changeStatus,
-  getAvailableStock
+  getAvailableStock,
+  repairResolution
 };

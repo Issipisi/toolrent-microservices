@@ -18,4 +18,7 @@ public interface LoanClient {
     @GetMapping("/returned-with-debts")
     List<LoanActiveDTO> getReturnedWithDebts();
 
+    @GetMapping("/all-closed")
+    List<LoanActiveDTO> getAllClosedLoans();
+
 }

@@ -27,5 +27,7 @@ public interface ToolClient {
     ToolUnitModel getToolUnit(@PathVariable("id") Long id);
 
     @PutMapping("/{id}/status")
-    void updateStatus(@PathVariable("id") Long id, @RequestParam String status);
+    void updateStatus(@PathVariable("id") Long id,
+                      @RequestParam String status,
+                      @RequestParam(required = false) String userName);
 }

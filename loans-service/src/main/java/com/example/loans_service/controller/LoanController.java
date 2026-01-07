@@ -21,8 +21,9 @@ public class LoanController {
     private final LoanService loanService;
 
     @PostMapping
-    public ResponseEntity<LoanResponseDTO> registerLoan(@RequestBody LoanRequestDTO request) {
-        LoanResponseDTO loan = loanService.registerLoan(request);
+    public ResponseEntity<LoanResponseDTO> registerLoan(@RequestBody LoanRequestDTO request,
+                                                        @RequestParam(required = false) String userName) {
+        LoanResponseDTO loan = loanService.registerLoan(request, userName);
         return ResponseEntity.ok(loan);
     }
 
@@ -30,8 +31,9 @@ public class LoanController {
     public ResponseEntity<LoanResponseDTO> returnLoan(
             @PathVariable Long id,
             @RequestParam(required = false) Double damageCharge,
-            @RequestParam(required = false, defaultValue = "false") Boolean irreparable) {
-        LoanResponseDTO returnedLoan = loanService.returnLoan(id, damageCharge, irreparable);
+            @RequestParam(required = false, defaultValue = "false") Boolean irreparable,
+            @RequestParam(required = false) String userName) {
+        LoanResponseDTO returnedLoan = loanService.returnLoan(id, damageCharge, irreparable, userName);
         return ResponseEntity.ok(returnedLoan);
     }
 
@@ -76,6 +78,12 @@ public class LoanController {
             @RequestParam(defaultValue = "false") boolean irreparable) {
         loanService.applyDamage(id, amount, irreparable);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/all-closed")
+    public ResponseEntity<List<LoanActiveDTO>> getAllClosedLoans() {
+        List<LoanActiveDTO> loans = loanService.getAllClosedLoans();
+        return ResponseEntity.ok(loans);
     }
 
     @ExceptionHandler(RuntimeException.class)

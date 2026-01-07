@@ -14,24 +14,18 @@ import java.util.Optional;
 @Repository
 public interface LoanRepository extends JpaRepository<LoanEntity, Long> {
 
+    // Contar préstamos activos de un cliente
+    long countByCustomerIdAndReturnDateIsNull(Long customerId);
+
+    // Verificar si cliente ya tiene esta herramienta en préstamo
+    boolean existsByCustomerIdAndToolGroupIdAndReturnDateIsNull(Long customerId, Long toolGroupId);
+
     // Préstamos activos (sin devolución)
     List<LoanEntity> findByReturnDateIsNull();
 
     // Préstamos vencidos
     @Query("SELECT l FROM LoanEntity l WHERE l.returnDate IS NULL AND l.dueDate < :now")
     List<LoanEntity> findOverdueLoans(@Param("now") LocalDateTime now);
-
-    // Préstamos de un cliente activos
-    List<LoanEntity> findByCustomerIdAndReturnDateIsNull(Long customerId);
-
-    // Contar préstamos activos de un cliente
-    long countByCustomerIdAndReturnDateIsNull(Long customerId);
-
-    // Verificar si cliente tiene préstamos vencidos
-    boolean existsByCustomerIdAndReturnDateIsNullAndDueDateBefore(Long customerId, LocalDateTime date);
-
-    // Verificar si cliente ya tiene esta herramienta en préstamo
-    boolean existsByCustomerIdAndToolGroupIdAndReturnDateIsNull(Long customerId, Long toolGroupId);
 
     // Préstamos devueltos con deudas
     // Métodos para obtener préstamos con deudas
@@ -45,6 +39,13 @@ public interface LoanRepository extends JpaRepository<LoanEntity, Long> {
 
     // Método básico como respaldo
     List<LoanEntity> findByReturnDateIsNotNull();
+
+    // Préstamos de un cliente activos
+    List<LoanEntity> findByCustomerIdAndReturnDateIsNull(Long customerId);
+
+    // Verificar si cliente tiene préstamos vencidos
+    boolean existsByCustomerIdAndReturnDateIsNullAndDueDateBefore(Long customerId, LocalDateTime date);
+
     // Último préstamo devuelto de una unidad
     Optional<LoanEntity> findTopByToolUnitIdAndReturnDateIsNotNullOrderByReturnDateDesc(Long toolUnitId);
 

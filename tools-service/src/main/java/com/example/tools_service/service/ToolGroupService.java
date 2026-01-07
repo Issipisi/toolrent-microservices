@@ -29,7 +29,7 @@ public class ToolGroupService {
     private final KardexClient kardexClient; // NUEVO: Kardex Client
 
     @Transactional
-    public ToolGroupResponseDTO createToolGroup(ToolGroupRequestDTO request) {
+    public ToolGroupResponseDTO createToolGroup(ToolGroupRequestDTO request, String userName) {
         log.info("Creando grupo de herramientas: {}", request.getName());
 
         // 1. Validar nombre único
@@ -70,7 +70,6 @@ public class ToolGroupService {
         log.info("Grupo de herramientas creado: ID {}, Unidades: {}",
                 saved.getId(), saved.getUnits().size());
 
-        // En el método createToolGroup, reemplazar la parte del kardex:
 
         // ===== REGISTRAR EN KARDEX: CREACIÓN DE HERRAMIENTAS =====
         try {
@@ -79,7 +78,7 @@ public class ToolGroupService {
                     saved.getId(),
                     saved.getName(),
                     saved.getUnits().size(),
-                    "Tool group created with initial stock of " + saved.getUnits().size() + " units"
+                    userName != null ? userName : "Usuario"
             );
             log.info("Kardex: Tool group {} created with {} units", saved.getId(), saved.getUnits().size());
 
@@ -153,7 +152,7 @@ public class ToolGroupService {
 
     /**
      * Enviar herramienta a reparación
-     */
+
     @Transactional
     public void sendToRepair(Long unitId, String reason, Long customerId) {
         ToolUnitEntity unit = toolUnitRepository.findById(unitId)
@@ -181,11 +180,11 @@ public class ToolGroupService {
         } catch (Exception e) {
             log.warn("Error registrando reparación en Kardex", e);
         }
-    }
+    }*/
 
     /**
      * Completar reparación de herramienta
-     */
+
     @Transactional
     public void completeRepair(Long unitId, Double repairCost, boolean successful, String notes) {
         ToolUnitEntity unit = toolUnitRepository.findById(unitId)
@@ -230,7 +229,7 @@ public class ToolGroupService {
         }
 
         toolUnitRepository.save(unit);
-    }
+    }*/
 
     /**
      * Retirar herramienta (baja definitiva)
@@ -289,4 +288,5 @@ public class ToolGroupService {
             return new TariffModel(tariffId, 0.0, 0.0);
         }
     }
+
 }

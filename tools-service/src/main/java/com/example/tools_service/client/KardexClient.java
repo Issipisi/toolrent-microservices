@@ -61,5 +61,24 @@ public interface KardexClient {
             @RequestParam Long toolGroupId,
             @RequestParam String toolGroupName,
             @RequestParam Integer quantity,
-            @RequestParam String notes);
+            @RequestParam(required = false) String userName);
+
+    // Tool Unit
+    @PostMapping("/tool-unit/send-to-repair")
+    void registerSendToRepairUnit(@RequestParam Long toolUnitId,
+                              @RequestParam Long toolGroupId,
+                              @RequestParam String toolGroupName,
+                              @RequestParam String userName);
+
+    @PostMapping("/tool-unit/retirement")
+    void registerRetirementUnit(@RequestParam Long toolUnitId,
+                            @RequestParam Long toolGroupId,
+                            @RequestParam String toolGroupName,
+                            @RequestParam String userName);
+
+    @PostMapping("/tool-unit/re-entry")
+    void registerReEntryUnit(@RequestParam Long toolUnitId,
+                         @RequestParam Long toolGroupId,
+                         @RequestParam String toolGroupName,
+                         @RequestParam String userName);
 }

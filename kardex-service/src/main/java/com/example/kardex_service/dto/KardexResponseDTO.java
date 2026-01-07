@@ -15,7 +15,7 @@ public class KardexResponseDTO {
     private String toolGroupName;
     private Long customerId;
     private String customerName;
-    private Long userId;
+    private String userId;
     private String userName;
     private String movementType;
     private LocalDateTime movementDate;
